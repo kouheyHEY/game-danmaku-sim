@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>danmaku-sim</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; height: 100%; background: #0b0d12; overflow: hidden; }
+      body {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 8px; font-family: system-ui, sans-serif;
+        touch-action: none; -webkit-user-select: none; user-select: none;
+      }
+      #app { position: relative; line-height: 0; }
+      #app canvas { outline: none; display: block; box-shadow: 0 0 0 1px #1e2330; touch-action: none; }
+      #hint {
+        position: absolute; inset: 0; z-index: 2; pointer-events: none;
+        display: grid; place-items: center;
+        background: rgba(11, 13, 18, 0.55);
+        color: #e6ebf5; font: 600 16px system-ui, sans-serif;
+      }
+      #hint.hidden { display: none; }
+      #controls { color: #7c8499; font: 12px system-ui, sans-serif; text-align: center; padding: 0 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="app"><div id="hint">タップ / クリックで操作開始</div></div>
+    <p id="controls">
+      移動: ドラッグ / 矢印・WASD ・ 発射: 自動<br />
+      ステージ切替: [1] ①→②反転 ・ [2] ③当てる ・ [3] ④当てるな ・ リトライ: [R]
+    </p>
+    <script type="module" src="/src/app/main.ts"></script>
+  </body>
+</html>
