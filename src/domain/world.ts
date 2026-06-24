@@ -181,6 +181,9 @@ export function defaultShip(bounds: Rect): Ship {
     speed: 240,
     autoFire: true,
     weapon: oneWay({ speed: 560, radius: 4, interval: 0.08, angle: -Math.PI / 2 }), // 上向き直線ショット
+    hp: 6,
+    maxHp: 6,
+    invulnUntil: 0,
   };
 }
 
@@ -191,5 +194,6 @@ export function defaultEnemy(id: EntityId, bounds: Rect): Enemy {
     vel: { x: 0, y: 0 },
     hitRadius: 16,
     hp: 100,
+    maxHp: 100,
   };
 }

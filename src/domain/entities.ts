@@ -13,6 +13,10 @@ export interface Ship {
   // 発射（③④で自機が撃つ側になるため）。武器も弾幕パターンで差し替え可能。
   autoFire: boolean; // 東方風：押さなくても自動で撃つ
   weapon: Pattern; // 自機の発射パターン（上向き）。④では制御可能な偶数弾など
+  // ローグライト用：耐久と無敵時間
+  hp: number;
+  maxHp: number;
+  invulnUntil: number; // この world.time までは被弾無効
 }
 
 export interface Enemy {
@@ -21,6 +25,7 @@ export interface Enemy {
   vel: Vec2; // 移動量。0なら静止（③では動く標的にする）
   hitRadius: number;
   hp: number;
+  maxHp: number;
 }
 
 export interface Bullet {
