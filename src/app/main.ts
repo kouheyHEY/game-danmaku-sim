@@ -55,9 +55,19 @@ async function main(): Promise<void> {
   const rewardHitTest = (p: { x: number; y: number }): number =>
     rewardCardRects().findIndex((r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
 
+  // スマホでの誤操作（スクロール/長押しメニュー/ピンチズーム/ダブルタップ拡大）を無効化。
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+
   canvas.tabIndex = 0;
   canvas.addEventListener('pointerdown', (e) => {
     focusGame();
+    if (run.phase === 'gameover' || run.phase === 'win') {
+      run = startRun(); // タップでリトライ（スマホ対応）
+      acc = 0;
+      return;
+    }
     if (run.phase === 'reward') {
       const i = rewardHitTest(toField(e));
       if (i >= 0) chooseReward(run, i);

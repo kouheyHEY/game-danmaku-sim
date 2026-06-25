@@ -136,7 +136,7 @@ export class RunRenderer {
       this.hint.visible = true;
     } else if (ended) {
       this.dim.rect(0, 0, FIELD.w, FIELD.h).fill({ color: 0x0b0d12, alpha: 0.72 });
-      this.banner.text = run.phase === 'win' ? '踏破！ CLEAR\n［R］でもう一度' : 'GAME OVER\n［R］でリスタート';
+      this.banner.text = run.phase === 'win' ? '踏破！ CLEAR\nタップ / [R] でもう一度' : 'GAME OVER\nタップ / [R] でリスタート';
     }
   }
 }
