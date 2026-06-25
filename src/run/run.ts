@@ -1,4 +1,4 @@
-import { makeWorld, defaultShip, step, type World } from '../domain/world';
+import { makeWorld, defaultShip, shipSpawn, step, type World } from '../domain/world';
 import type { Enemy, ShipInput } from '../domain/entities';
 import { makeRng, type Rng } from '../domain/rng';
 import { FIELD } from '../spec/stage0';
@@ -64,7 +64,10 @@ export function stepRun(run: Run, input: ShipInput, dt: number): void {
   if (run.phase !== 'fighting') return;
   const w = run.world;
   const ship = w.ship;
-  const events = step(w, input, dt);
+  // 点滅(無敵)中は操作を受け付けず初期位置で待機する（＝復帰の演出）。
+  const invuln = w.time < ship.invulnUntil;
+  const used: ShipInput = invuln ? { moveX: 0, moveY: 0 } : input;
+  const events = step(w, used, dt);
   for (const ev of events) {
     if (ev.kind === 'bullet-hits-enemy' && ev.owner === 'player') {
       const e = w.enemies.find((x) => x.id === ev.enemy);
@@ -73,6 +76,8 @@ export function stepRun(run: Run, input: ShipInput, dt: number): void {
       if (w.time >= ship.invulnUntil) {
         ship.hp -= 1;
         ship.invulnUntil = w.time + IFRAME;
+        ship.pos = shipSpawn(w.bounds); // 被弾したら初期位置へ戻す
+        ship.vel = { x: 0, y: 0 };
       }
     }
   }
@@ -88,7 +93,7 @@ export function stepRun(run: Run, input: ShipInput, dt: number): void {
       run.phase = 'win';
     } else {
       run.phase = 'reward';
-      run.rewards = drawChoices(run.rng);
+      run.rewards = drawChoices(run.rng, run.loadout);
     }
   }
 }

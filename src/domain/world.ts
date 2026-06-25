@@ -1,4 +1,4 @@
-import { circlesOverlap, clamp, type Rect } from './math';
+import { circlesOverlap, clamp, type Rect, type Vec2 } from './math';
 import type { Bullet, Enemy, EntityId, Ship, ShipInput } from './entities';
 import { oneWay, type Pattern } from './pattern';
 import type { CollisionEvent } from './collision';
@@ -104,6 +104,7 @@ function moveShip(world: World, input: ShipInput, dt: number): void {
 /** 自機の発射。武器パターン(weapon)で player 陣営の弾を撒く。④では偶数弾など制御可能な型を使う。 */
 function fireWeapon(world: World, input: ShipInput, dt: number): void {
   const ship = world.ship;
+  if (world.time < ship.invulnUntil) return; // 点滅(無敵)中は撃たない
   if (!(ship.autoFire || input.fire)) return;
   const spawns = ship.weapon.emit(world.time, dt, ship.pos, world.rng);
   for (const s of spawns) {
@@ -154,9 +155,10 @@ function cullBullets(world: World): void {
 function detectCollisions(world: World): CollisionEvent[] {
   const events: CollisionEvent[] = [];
   const survivors: Bullet[] = [];
+  const shipInvuln = world.time < world.ship.invulnUntil; // 点滅中は当たり判定を無効化
   for (const b of world.bullets) {
     if (b.owner === 'enemy') {
-      if (circlesOverlap(b.pos, b.radius, world.ship.pos, world.ship.hitRadius)) {
+      if (!shipInvuln && circlesOverlap(b.pos, b.radius, world.ship.pos, world.ship.hitRadius)) {
         events.push({ kind: 'bullet-hits-ship', bullet: b.id, owner: 'enemy' });
         continue; // 当たった弾は消す（同じ弾で連続失点しない）
       }
@@ -173,9 +175,14 @@ function detectCollisions(world: World): CollisionEvent[] {
   return events;
 }
 
+/** 自機の初期位置（下中央）。被弾時の復帰先にも使う。 */
+export function shipSpawn(bounds: Rect): Vec2 {
+  return { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h * 0.8 };
+}
+
 export function defaultShip(bounds: Rect): Ship {
   return {
-    pos: { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h * 0.8 },
+    pos: shipSpawn(bounds),
     vel: { x: 0, y: 0 },
     hitRadius: 3,
     speed: 240,
