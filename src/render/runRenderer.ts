@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import type { Rect } from '../domain/math';
 import { FIELD } from '../spec/stage0';
-import { currentEnemy, type Run } from '../run/run';
+import { currentEnemy, RESPAWN_TIME, type Run } from '../run/run';
 import { describeWeapon } from '../run/weapon';
 
 const ENEMY = 0xff5d73;
@@ -32,6 +32,7 @@ export class RunRenderer {
   private readonly enemyG = new Graphics();
   private readonly enemyHpG = new Graphics();
   private readonly bulletsG = new Graphics();
+  private readonly fxG = new Graphics();
   private readonly shipG = new Graphics();
   private readonly dim = new Graphics();
   private readonly cardG = new Graphics();
@@ -43,7 +44,7 @@ export class RunRenderer {
   private readonly banner: Text;
 
   constructor(stage: Container) {
-    stage.addChild(this.enemyG, this.enemyHpG, this.bulletsG, this.shipG, this.hpBar);
+    stage.addChild(this.enemyG, this.enemyHpG, this.bulletsG, this.fxG, this.shipG, this.hpBar);
     this.hud = new Text({ text: '', style: textStyle(13, 0xcfd6e6) });
     this.hud.position.set(8, 8);
     stage.addChild(this.hud, this.dim, this.cardG);
@@ -82,11 +83,22 @@ export class RunRenderer {
       this.bulletsG.circle(b.pos.x, b.pos.y, b.radius).fill({ color: b.owner === 'player' ? PLAYER_BULLET : ENEMY_BULLET });
     }
 
+    // 死亡エフェクト：被弾位置で広がって消えるリング（復帰スライド中に表示）。
+    this.fxG.clear();
+    if (w.time < ship.respawnUntil) {
+      const p = Math.max(0, Math.min(1, 1 - (ship.respawnUntil - w.time) / RESPAWN_TIME));
+      const r = 8 + 40 * p;
+      this.fxG.circle(ship.deathPos.x, ship.deathPos.y, r).stroke({ color: 0xffd166, width: 3, alpha: (1 - p) * 0.8 });
+      this.fxG.circle(ship.deathPos.x, ship.deathPos.y, r * 0.55).stroke({ color: 0xffffff, width: 2, alpha: (1 - p) * 0.6 });
+    }
+
+    // 自機。見た目は大きく、当たり判定(白い小点)はそのまま小さく。
     this.shipG.clear();
     const inv = w.time < ship.invulnUntil;
-    const a = inv ? 0.35 + 0.45 * ((Math.sin(w.time * 30) + 1) / 2) : 1;
-    this.shipG.circle(ship.pos.x, ship.pos.y, 9).fill({ color: SHIP, alpha: 0.25 * a });
-    this.shipG.circle(ship.pos.x, ship.pos.y, ship.hitRadius).fill({ color: 0xffffff, alpha: a });
+    const a = inv ? 0.3 + 0.5 * ((Math.sin(w.time * 28) + 1) / 2) : 1;
+    this.shipG.circle(ship.pos.x, ship.pos.y, 20).fill({ color: SHIP, alpha: 0.16 * a }); // グロー
+    this.shipG.circle(ship.pos.x, ship.pos.y, 14).fill({ color: SHIP, alpha: 0.85 * a }); // 機体（大きめ）
+    this.shipG.circle(ship.pos.x, ship.pos.y, ship.hitRadius).fill({ color: 0xffffff, alpha: a }); // 当たり判定
 
     const e = currentEnemy(run);
     this.hud.text = [

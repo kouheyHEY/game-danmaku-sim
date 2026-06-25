@@ -13,10 +13,12 @@ export interface Ship {
   // 発射（③④で自機が撃つ側になるため）。武器も弾幕パターンで差し替え可能。
   autoFire: boolean; // 東方風：押さなくても自動で撃つ
   weapon: Pattern; // 自機の発射パターン（上向き）。④では制御可能な偶数弾など
-  // ローグライト用：耐久と無敵時間
+  // ローグライト用：耐久・無敵・復帰演出
   hp: number;
   maxHp: number;
-  invulnUntil: number; // この world.time までは被弾無効
+  invulnUntil: number; // この time までは被弾無効（点滅）
+  respawnUntil: number; // この time までは復帰スライド中（操作不可・無発射）
+  deathPos: Vec2; // 直近の被弾位置（死亡エフェクト用）
 }
 
 export interface Enemy {

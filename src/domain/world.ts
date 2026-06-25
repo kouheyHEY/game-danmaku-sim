@@ -104,7 +104,7 @@ function moveShip(world: World, input: ShipInput, dt: number): void {
 /** 自機の発射。武器パターン(weapon)で player 陣営の弾を撒く。④では偶数弾など制御可能な型を使う。 */
 function fireWeapon(world: World, input: ShipInput, dt: number): void {
   const ship = world.ship;
-  if (world.time < ship.invulnUntil) return; // 点滅(無敵)中は撃たない
+  if (world.time < ship.respawnUntil) return; // 復帰スライド中は撃たない
   if (!(ship.autoFire || input.fire)) return;
   const spawns = ship.weapon.emit(world.time, dt, ship.pos, world.rng);
   for (const s of spawns) {
@@ -191,6 +191,8 @@ export function defaultShip(bounds: Rect): Ship {
     hp: 6,
     maxHp: 6,
     invulnUntil: 0,
+    respawnUntil: 0,
+    deathPos: { x: 0, y: 0 },
   };
 }
 

@@ -87,28 +87,37 @@ describe('Run：撃破→3択強化→次→…→踏破/死亡', () => {
     expect(appears).toBe(true);
   });
 
-  it('被弾：1減り点滅(無敵)・初期位置へ。点滅中は無敵で自弾も撃たない', () => {
+  it('被弾：1減り、画面下からの復帰へ（無敵・復帰中は無発射）', () => {
     const run = startRun(1);
     const w = run.world;
     const ship = w.ship;
     const hp0 = ship.hp;
-    const atShip = (id: number): Bullet => ({ id, pos: { x: ship.pos.x, y: ship.pos.y }, vel: { x: 0, y: 0 }, radius: 6, owner: 'enemy' });
-
-    w.bullets.push(atShip(9991));
+    w.bullets.push({ id: 9991, pos: { x: ship.pos.x, y: ship.pos.y }, vel: { x: 0, y: 0 }, radius: 6, owner: 'enemy' });
     stepRun(run, STILL, DT);
     expect(ship.hp).toBe(hp0 - 1);
     expect(ship.invulnUntil).toBeGreaterThan(w.time);
-    expect(ship.pos.x).toBeCloseTo(FIELD.x + FIELD.w / 2); // 初期位置へ
-    expect(ship.pos.y).toBeCloseTo(FIELD.y + FIELD.h * 0.8);
+    expect(ship.respawnUntil).toBeGreaterThan(w.time);
+    expect(ship.pos.x).toBeCloseTo(FIELD.x + FIELD.w / 2);
+    expect(ship.pos.y).toBeGreaterThan(FIELD.y + FIELD.h); // 画面下から登場
 
-    // 点滅中：敵弾を重ねても無敵で通り抜け、自弾も増えない
-    const hp1 = ship.hp;
+    // 復帰スライド中は自弾を撃たない（増えない）
     const playerBefore = w.bullets.filter((b) => b.owner === 'player').length;
-    w.bullets.push({ id: 9992, pos: { x: ship.pos.x, y: ship.pos.y }, vel: { x: 0, y: 0 }, radius: 6, owner: 'enemy' });
     stepRun(run, STILL, DT);
-    expect(ship.hp).toBe(hp1); // 無敵：減らない
-    expect(w.bullets.some((b) => b.id === 9992)).toBe(true); // 通り抜け（消えない）
     const playerAfter = w.bullets.filter((b) => b.owner === 'player').length;
-    expect(playerAfter).toBeLessThanOrEqual(playerBefore); // 自弾を撃たない（増えない）
+    expect(playerAfter).toBeLessThanOrEqual(playerBefore);
+  });
+
+  it('点滅(無敵)中は敵弾が通り抜け、被弾しない', () => {
+    const run = startRun(1);
+    const w = run.world;
+    const ship = w.ship;
+    ship.invulnUntil = w.time + 1; // 点滅(grace)中
+    ship.respawnUntil = 0; // 画面内・操作可
+    const hp0 = ship.hp;
+    const b: Bullet = { id: 7001, pos: { x: ship.pos.x, y: ship.pos.y }, vel: { x: 0, y: 0 }, radius: 6, owner: 'enemy' };
+    w.bullets.push(b);
+    stepRun(run, STILL, DT);
+    expect(ship.hp).toBe(hp0); // 無敵：減らない
+    expect(w.bullets.some((x) => x.id === 7001)).toBe(true); // 通り抜け（消えない）
   });
 });

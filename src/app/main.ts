@@ -45,15 +45,24 @@ async function main(): Promise<void> {
   let acc = 0;
 
   // ドラッグで自機を相対追従（指で隠れないようつかみ位置を保持）。reward 中はカード選択。
-  let dragging = false;
+  let dragging = false; // 追従中か
+  let pointerActive = false; // 指/マウスが押下中か
   let target: { x: number; y: number } | null = null;
   let grab = { x: 0, y: 0 };
+  let finger = { x: 0, y: 0 }; // 最新の指位置（場座標）
+  let wasLocked = false; // 前フレームが復帰スライド中だったか
   const toField = (e: PointerEvent) => {
     const r = canvas.getBoundingClientRect();
     return { x: ((e.clientX - r.left) / r.width) * FIELD.w, y: ((e.clientY - r.top) / r.height) * FIELD.h };
   };
   const rewardHitTest = (p: { x: number; y: number }): number =>
     rewardCardRects().findIndex((r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
+  // 自機を現在位置でつかみ直す（指への瞬間移動を防ぐ）。
+  const regrab = () => {
+    const ship = run.world.ship;
+    grab = { x: ship.pos.x - finger.x, y: ship.pos.y - finger.y };
+    target = { x: ship.pos.x, y: ship.pos.y };
+  };
 
   // スマホでの誤操作（スクロール/長押しメニュー/ピンチズーム/ダブルタップ拡大）を無効化。
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -73,18 +82,18 @@ async function main(): Promise<void> {
       if (i >= 0) chooseReward(run, i);
       return;
     }
-    dragging = true;
-    const p = toField(e);
-    grab = { x: run.world.ship.pos.x - p.x, y: run.world.ship.pos.y - p.y };
-    target = { x: run.world.ship.pos.x, y: run.world.ship.pos.y };
+    pointerActive = true;
+    finger = toField(e);
+    regrab();
+    dragging = run.world.ship.respawnUntil <= run.world.time; // 復帰スライド中は追従しない
     canvas.setPointerCapture?.(e.pointerId);
   });
   canvas.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const p = toField(e);
-    target = { x: p.x + grab.x, y: p.y + grab.y };
+    finger = toField(e);
+    if (dragging) target = { x: finger.x + grab.x, y: finger.y + grab.y };
   });
   const endDrag = () => {
+    pointerActive = false;
     dragging = false;
     target = null;
   };
@@ -103,6 +112,13 @@ async function main(): Promise<void> {
     }
 
     if (run.phase === 'fighting') {
+      const ship = run.world.ship;
+      const locked = ship.respawnUntil > run.world.time; // 復帰スライド中は追従停止
+      if (wasLocked && !locked && pointerActive) regrab(); // 復帰完了：指へ瞬間移動させずつかみ直す
+      if (locked) dragging = false;
+      else if (pointerActive && !dragging) dragging = true;
+      wasLocked = locked;
+
       acc += Math.min(ticker.deltaMS / 1000, MAX_FRAME);
       const input: ShipInput = dragging && target ? { moveX: 0, moveY: 0, target } : kb.sample();
       while (acc >= STEP) {
@@ -110,6 +126,8 @@ async function main(): Promise<void> {
         acc -= STEP;
         if (run.phase !== 'fighting') break;
       }
+    } else {
+      wasLocked = false;
     }
 
     renderer.draw(run);

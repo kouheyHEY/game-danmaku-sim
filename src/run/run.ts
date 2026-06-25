@@ -7,7 +7,8 @@ import { buildWeapon } from './weapon';
 import { enemyQueue, type EnemySpec } from './enemies';
 import { drawChoices, type Upgrade } from './upgrades';
 
-const IFRAME = 0.7; // 被弾後の無敵 [s]
+const IFRAME = 2.0; // 被弾後の無敵(点滅) [s]
+export const RESPAWN_TIME = 0.7; // 画面下から復帰しきるまで [s]（この間は操作不可・無発射）
 
 export type RunPhase = 'fighting' | 'reward' | 'gameover' | 'win';
 
@@ -60,13 +61,22 @@ export function currentEnemy(run: Run): EnemySpec {
  * 戦闘を1ステップ進め、イベントをダメージに解決する。
  * 撃破→reward（最後なら win）、自機HP0→gameover。
  */
+/** 復帰スライド：画面下からスーッと初期位置へ上がる（easeOutCubic）。 */
+function respawnSlide(w: World): { x: number; y: number } {
+  const b = w.bounds;
+  const spawn = shipSpawn(b);
+  const startY = b.y + b.h + 36; // 画面の少し下
+  const p = Math.max(0, Math.min(1, 1 - (w.ship.respawnUntil - w.time) / RESPAWN_TIME));
+  const e = 1 - (1 - p) ** 3;
+  return { x: spawn.x, y: startY + (spawn.y - startY) * e };
+}
+
 export function stepRun(run: Run, input: ShipInput, dt: number): void {
   if (run.phase !== 'fighting') return;
   const w = run.world;
   const ship = w.ship;
-  // 点滅(無敵)中は操作を受け付けず初期位置で待機する（＝復帰の演出）。
-  const invuln = w.time < ship.invulnUntil;
-  const used: ShipInput = invuln ? { moveX: 0, moveY: 0 } : input;
+  // 復帰スライド中だけ操作を止める（点滅の残り＝grace 中は動ける）。
+  const used: ShipInput = w.time < ship.respawnUntil ? { moveX: 0, moveY: 0 } : input;
   const events = step(w, used, dt);
   for (const ev of events) {
     if (ev.kind === 'bullet-hits-enemy' && ev.owner === 'player') {
@@ -75,11 +85,16 @@ export function stepRun(run: Run, input: ShipInput, dt: number): void {
     } else if (ev.kind === 'bullet-hits-ship' && ev.owner === 'enemy') {
       if (w.time >= ship.invulnUntil) {
         ship.hp -= 1;
+        ship.deathPos = { x: ship.pos.x, y: ship.pos.y }; // その場で爆発させる位置
         ship.invulnUntil = w.time + IFRAME;
-        ship.pos = shipSpawn(w.bounds); // 被弾したら初期位置へ戻す
-        ship.vel = { x: 0, y: 0 };
+        ship.respawnUntil = w.time + RESPAWN_TIME;
       }
     }
+  }
+  // 復帰中は位置を下からのスライドで上書き（操作・物理に依らない）。
+  if (w.time < ship.respawnUntil) {
+    ship.pos = respawnSlide(w);
+    ship.vel = { x: 0, y: 0 };
   }
   w.enemies = w.enemies.filter((e) => e.hp > 0);
 
