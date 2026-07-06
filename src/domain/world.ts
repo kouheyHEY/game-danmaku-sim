@@ -123,7 +123,7 @@ function fireWeapon(world: World, input: ShipInput, dt: number): void {
 }
 
 function emitFrom(world: World, pattern: Pattern, pos: { x: number; y: number }, dt: number): void {
-  const spawns = pattern.emit(world.time, dt, pos, world.rng);
+  const spawns = pattern.emit(world.time, dt, pos, world.rng, world.ship.pos); // aim=自機
   for (const s of spawns) {
     world.bullets.push({
       id: world.nextId++,

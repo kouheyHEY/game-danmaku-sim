@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { oddSpread, evenSpread, randomSpread, rotating } from '../../src/domain/pattern';
+import { oddSpread, evenSpread, randomSpread, rotating, aimed } from '../../src/domain/pattern';
 import { makeRng } from '../../src/domain/rng';
 
 const rng = () => makeRng(1);
@@ -29,6 +29,17 @@ describe('弾幕パターンの種類', () => {
     const a1 = Math.atan2(first.vel.y, first.vel.x);
     const a2 = Math.atan2(second.vel.y, second.vel.x);
     expect(Math.abs(a2 - a1)).toBeGreaterThan(0.1);
+  });
+
+  it('aimed：自機(aim)の方向へ撃つ', () => {
+    const p = aimed({ ways: 1, spread: 0, speed: 100, radius: 4, interval: 0.2 });
+    const src = { x: 100, y: 0 };
+    const down = p.emit(0, 0.05, src, rng(), { x: 100, y: 200 })[0]; // 真下
+    expect(Math.abs(down.vel.x)).toBeLessThan(1e-6);
+    expect(down.vel.y).toBeGreaterThan(0);
+    const right = p.emit(0, 0.05, src, rng(), { x: 300, y: 0 })[0]; // 真右
+    expect(right.vel.x).toBeGreaterThan(0);
+    expect(Math.abs(right.vel.y)).toBeLessThan(1e-6);
   });
 
   it('ランダム弾：jitter で同条件でも角度がばらつく', () => {

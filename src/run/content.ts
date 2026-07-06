@@ -1,22 +1,20 @@
-import { fan, oddSpread, evenSpread, rotating, randomSpread, oneWay, type Pattern } from '../domain/pattern';
+import { fan, rotating, randomSpread, aimed, type Pattern } from '../domain/pattern';
 import type { Enemy } from '../domain/entities';
 import type { Rect } from '../domain/math';
 import type { Rng } from '../domain/rng';
 
 const DOWN = Math.PI / 2;
 
-/** 雑魚の弾パターン集（下向き中心）。level で少し強くなる。ランダムに1つ選ぶ。 */
+/** 雑魚の弾パターン集：すべて自機を狙って撃つ（回転などは使わない）。 */
 const MOB_PATTERNS: Array<(level: number) => Pattern> = [
-  // まっすぐ連射
-  (l) => oneWay({ speed: 150 + l * 6, radius: 5, interval: Math.max(0.4, 0.85 - l * 0.03), angle: DOWN }),
-  // 3-way 扇（奇数弾）
-  (l) => oddSpread({ ways: 3, spread: 0.26, speed: 130 + l * 6, radius: 5, interval: Math.max(0.6, 1.0 - l * 0.03), baseAngle: DOWN }),
-  // 偶数弾（正面に隙間）
-  (l) => evenSpread({ ways: 4, spread: 0.22, speed: 130 + l * 6, radius: 5, interval: Math.max(0.6, 1.0 - l * 0.03), baseAngle: DOWN }),
-  // ランダム散弾
-  (l) => randomSpread({ ways: 3 + Math.min(2, Math.floor(l / 3)), spread: 0.2, jitter: 0.5, speed: 140 + l * 6, radius: 5, interval: Math.max(0.45, 0.85 - l * 0.03), baseAngle: DOWN }),
-  // 小さな回転
-  (l) => rotating({ ways: 2, spread: 0.55, rotStep: 0.6, speed: 120 + l * 6, radius: 5, interval: Math.max(0.32, 0.6 - l * 0.02), baseAngle: DOWN }),
+  // 自機へ単発連射
+  (l) => aimed({ ways: 1, spread: 0, speed: 150 + l * 8, radius: 5, interval: Math.max(0.5, 0.95 - l * 0.03) }),
+  // 自機狙いの3-way
+  (l) => aimed({ ways: 3, spread: 0.17, speed: 140 + l * 7, radius: 5, interval: Math.max(0.7, 1.15 - l * 0.03) }),
+  // 自機狙いに少しばらけさせる
+  (l) => aimed({ ways: 2, spread: 0.14, jitter: 0.22, speed: 150 + l * 7, radius: 5, interval: Math.max(0.5, 0.9 - l * 0.03) }),
+  // 自機狙いの5-way（level で解禁される密度）
+  (l) => aimed({ ways: 3 + Math.min(2, Math.floor(l / 3)), spread: 0.15, speed: 135 + l * 6, radius: 5, interval: Math.max(0.75, 1.2 - l * 0.03) }),
 ];
 
 function pickMobPattern(level: number, rng: Rng): Pattern {

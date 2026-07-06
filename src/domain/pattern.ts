@@ -13,7 +13,8 @@ export interface BulletSpawn {
  * 内部状態を持たず決定論的（ランダム弾はシード付き rng のみ使用）。
  */
 export interface Pattern {
-  emit(t: number, dt: number, source: Vec2, rng: Rng): BulletSpawn[];
+  // aim（自機位置）を渡すと、狙い撃ち系パターンがそちらを向く。他は無視。
+  emit(t: number, dt: number, source: Vec2, rng: Rng, aim?: Vec2): BulletSpawn[];
 }
 
 /** 窓 [t, t+dt) に入る発射タイミング k を列挙する。 */
@@ -90,6 +91,34 @@ export function rotating(p: SpreadParams & { rotStep: number }): Pattern {
 /** ランダム弾：角度にランダムな揺らぎを乗せる。 */
 export function randomSpread(p: SpreadParams & { jitter: number }): Pattern {
   return fan(p);
+}
+
+export interface AimedParams {
+  ways: number;
+  spread: number; // 隣り合う弾の角度差 [rad]
+  speed: number;
+  radius: number;
+  interval: number;
+  jitter?: number; // 狙いのゆらぎ [rad]
+}
+
+/** 自機(aim)を狙って撃つ。aim が無ければ下向き。ways で狙い方向を中心に扇状に。 */
+export function aimed(p: AimedParams): Pattern {
+  return {
+    emit(t, dt, source, rng, aim) {
+      const spawns: BulletSpawn[] = [];
+      const base = aim ? Math.atan2(aim.y - source.y, aim.x - source.x) : Math.PI / 2;
+      for (const k of fireTimes(t, dt, p.interval)) {
+        void k;
+        for (let i = 0; i < p.ways; i++) {
+          const jit = p.jitter ? (rng.next() - 0.5) * 2 * p.jitter : 0;
+          const a = base + (i - (p.ways - 1) / 2) * p.spread + jit;
+          spawns.push({ pos: { x: source.x, y: source.y }, vel: { x: Math.cos(a) * p.speed, y: Math.sin(a) * p.speed }, radius: p.radius });
+        }
+      }
+      return spawns;
+    },
+  };
 }
 
 export interface OneWayParams {

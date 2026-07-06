@@ -32,9 +32,13 @@ async function main(): Promise<void> {
   new ResizeObserver(fit).observe(document.documentElement);
   fit();
 
-  // スマホの誤操作（スクロール/長押しメニュー/ピンチズーム）を無効化。
+  // スマホの誤操作（スクロール/スワイプ/長押しメニュー/ピンチズーム）を無効化。
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-  document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+  const blockTouch = (e: Event) => {
+    if ((e as { cancelable: boolean }).cancelable) e.preventDefault();
+  };
+  document.addEventListener('touchstart', blockTouch, { passive: false });
+  document.addEventListener('touchmove', blockTouch, { passive: false });
   document.addEventListener('gesturestart', (e) => e.preventDefault());
 
   const renderer = new SessionRenderer(app.stage);
