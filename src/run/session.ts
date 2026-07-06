@@ -140,12 +140,12 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
   if (session.bossId == null) {
     if (w.time >= session.nextBossAt) {
       const id = session.nextEnemyId++;
-      w.enemies.push(makeBoss(id, session.level, w.bounds));
+      w.enemies.push(makeBoss(id, session.level, w.bounds, session.rng));
       session.bossId = id;
     } else if (w.time >= session.nextMobAt) {
       const id = session.nextEnemyId++;
       const x = w.bounds.x + 20 + session.rng.next() * (w.bounds.w - 40);
-      w.enemies.push(makeMob(id, x, session.level, w.bounds));
+      w.enemies.push(makeMob(id, x, session.level, w.bounds, session.rng));
       session.nextMobAt = w.time + mobInterval(session.level);
     }
   }

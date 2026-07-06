@@ -41,6 +41,7 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     s.nextMobAt = s.world.time + 0.05;
     stepFor(s, 0.2); // 雑魚出現
     expect(s.world.enemies.length).toBeGreaterThan(0);
+    expect(s.world.enemies.every((e) => e.maxHp === 1)).toBe(true); // ボス以外は一撃(HP1)
     const kills0 = s.kills;
     s.world.enemies.forEach((e) => (e.hp = 0)); // 撃破
     stepSession(s, STILL, DT);
