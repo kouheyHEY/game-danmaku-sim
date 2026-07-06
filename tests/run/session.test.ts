@@ -14,45 +14,66 @@ function stepFor(session: ReturnType<typeof beginSession>, seconds: number) {
 }
 
 describe('Session：Tap to Start / ひたすら避ける / たまにボス', () => {
-  it('title は開始前、begin で playing・雨が降る・敵なし', () => {
+  it('title は開始前、begin で playing・固定エミッタ無し・敵なし', () => {
     expect(titleSession(1).phase).toBe('title');
     const s = beginSession(1);
     expect(s.phase).toBe('playing');
-    expect(s.world.enemyPattern).not.toBeNull();
+    expect(s.world.enemyPattern).toBeNull(); // 弾は敵が撃つ
     expect(s.world.enemies).toHaveLength(0);
+    expect(s.kills).toBe(0);
+    expect(s.bossId).toBeNull();
   });
 
-  it('避けた弾がスコアになる（画面外に出た敵弾を数える）', () => {
+  it('降ってくる敵が弾を撃ち、避けた弾がスコアになる', () => {
     const s = beginSession(1);
     s.world.ship.invulnUntil = 1e9; // 無敵にして被弾でゲームオーバーにしない
     stepFor(s, 8);
-    expect(s.score).toBeGreaterThan(0);
+    expect(s.world.enemies.length).toBeGreaterThan(0); // 敵が湧いている
+    expect(s.score).toBeGreaterThan(0); // 敵弾を避けた（画面外に消えた）
     expect(s.score).toBe(s.world.dodged);
     expect(s.phase).toBe('playing');
   });
 
-  it('一定時間でボスが出現する', () => {
+  it('雑魚を倒すと撃破数が増える', () => {
     const s = beginSession(1);
     s.world.ship.invulnUntil = 1e9;
-    s.nextBossAt = s.world.time + 0.2;
-    stepFor(s, 0.5);
-    expect(s.bossActive).toBe(true);
-    expect(s.world.enemies.length).toBe(1);
+    s.nextBossAt = 1e9; // ボスは出さない
+    s.nextMobAt = s.world.time + 0.05;
+    stepFor(s, 0.2); // 雑魚出現
+    expect(s.world.enemies.length).toBeGreaterThan(0);
+    const kills0 = s.kills;
+    s.world.enemies.forEach((e) => (e.hp = 0)); // 撃破
+    stepSession(s, STILL, DT);
+    expect(s.kills).toBe(kills0 + 1);
   });
 
-  it('ボス撃破で HP+1回復・武器強化・次のボス予約', () => {
+  it('一定時間でボスが出現し弾幕を持つ', () => {
+    const s = beginSession(1);
+    s.world.ship.invulnUntil = 1e9;
+    s.nextMobAt = 1e9; // 雑魚を止めてボスだけ
+    s.nextBossAt = s.world.time + 0.2;
+    stepFor(s, 0.5);
+    expect(s.bossId).not.toBeNull();
+    const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
+    expect(boss.pattern).not.toBeNull(); // ボスも撃つ
+  });
+
+  it('ボス撃破で HP+1回復・武器強化・撃破数+1・次のボス予約', () => {
     const s = beginSession(1);
     s.world.ship.invulnUntil = 1e9;
     s.world.ship.hp = 2; // 回復が見えるよう減らしておく
+    s.nextMobAt = 1e9;
     s.nextBossAt = s.world.time + 0.05;
     stepFor(s, 0.2); // ボス出現
-    expect(s.bossActive).toBe(true);
+    expect(s.bossId).not.toBeNull();
+    const kills0 = s.kills;
     const wpnBefore = JSON.stringify(s.loadout.weapon);
     s.world.enemies.forEach((e) => (e.hp = 0)); // 撃破
     stepSession(s, STILL, DT);
-    expect(s.bossActive).toBe(false);
+    expect(s.bossId).toBeNull();
     expect(s.level).toBe(1);
     expect(s.world.ship.hp).toBe(3); // +1回復
+    expect(s.kills).toBe(kills0 + 1);
     expect(JSON.stringify(s.loadout.weapon)).not.toBe(wpnBefore); // 強化された
     expect(s.toast).not.toBeNull();
     expect(s.nextBossAt).toBeGreaterThan(s.world.time);

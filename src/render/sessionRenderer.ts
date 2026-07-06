@@ -25,6 +25,7 @@ export class SessionRenderer {
   private readonly hpText: Text;
   private readonly scoreLabel: Text;
   private readonly scoreNum: Text;
+  private readonly killsText: Text;
   private readonly toast: Text;
   private readonly dim = new Graphics();
   private readonly center: Text;
@@ -38,9 +39,12 @@ export class SessionRenderer {
     this.scoreLabel = new Text({ text: '避けた弾', style: style(12, 0x9aa3b8) });
     this.scoreLabel.anchor.set(1, 0);
     this.scoreLabel.position.set(FIELD.w - 10, 6);
-    this.scoreNum = new Text({ text: '0', style: style(30, 0xffffff, true) });
+    this.scoreNum = new Text({ text: '0', style: style(28, 0xffffff, true) });
     this.scoreNum.anchor.set(1, 0);
     this.scoreNum.position.set(FIELD.w - 10, 20);
+    this.killsText = new Text({ text: '撃破 0', style: style(14, 0x9fe8b0) });
+    this.killsText.anchor.set(1, 0);
+    this.killsText.position.set(FIELD.w - 10, 56);
 
     this.toast = new Text({ text: '', style: style(16, 0xfff0a8, true) });
     this.toast.anchor.set(0.5, 0);
@@ -50,7 +54,7 @@ export class SessionRenderer {
     this.center.anchor.set(0.5);
     this.center.position.set(FIELD.w / 2, FIELD.h * 0.44);
 
-    stage.addChild(this.hpText, this.scoreLabel, this.scoreNum, this.toast, this.dim, this.center);
+    stage.addChild(this.hpText, this.scoreLabel, this.scoreNum, this.killsText, this.toast, this.dim, this.center);
   }
 
   draw(session: Session): void {
@@ -65,11 +69,11 @@ export class SessionRenderer {
     this.bossG.clear();
     for (const e of w.enemies) {
       this.bossG.circle(e.pos.x, e.pos.y, e.hitRadius).fill({ color: BOSS });
-      const bw = 60;
+      const bw = Math.max(24, e.hitRadius * 2.4);
       const bx = e.pos.x - bw / 2;
-      const by = e.pos.y - e.hitRadius - 12;
-      this.bossG.rect(bx, by, bw, 5).fill({ color: 0x33384a });
-      this.bossG.rect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 5).fill({ color: BOSS });
+      const by = e.pos.y - e.hitRadius - 10;
+      this.bossG.rect(bx, by, bw, 4).fill({ color: 0x33384a });
+      this.bossG.rect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 4).fill({ color: BOSS });
     }
 
     this.fxG.clear();
@@ -91,9 +95,11 @@ export class SessionRenderer {
 
     this.hpText.text = 'HP ' + '♥'.repeat(Math.max(0, ship.hp));
     this.scoreNum.text = String(session.score);
+    this.killsText.text = `撃破 ${session.kills}`;
     const playing = session.phase === 'playing';
     this.scoreLabel.visible = playing;
     this.scoreNum.visible = playing;
+    this.killsText.visible = playing;
     this.hpText.visible = playing;
     this.toast.text = session.toast?.text ?? '';
     this.toast.visible = playing && !!session.toast;
@@ -105,7 +111,7 @@ export class SessionRenderer {
       this.center.visible = true;
     } else if (session.phase === 'gameover') {
       this.dim.rect(0, 0, FIELD.w, FIELD.h).fill({ color: 0x0b0d12, alpha: 0.72 });
-      this.center.text = `GAME OVER\n避けた弾  ${session.score}\n\nTap to restart`;
+      this.center.text = `GAME OVER\n避けた弾  ${session.score}  ・  撃破  ${session.kills}\n\nTap to restart`;
       this.center.visible = true;
     } else {
       this.center.visible = false;

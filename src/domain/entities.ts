@@ -24,10 +24,11 @@ export interface Ship {
 export interface Enemy {
   id: EntityId;
   pos: Vec2;
-  vel: Vec2; // 移動量。0なら静止（③では動く標的にする）
+  vel: Vec2; // 移動量（雑魚は下へ降下、ボスは横に往復）
   hitRadius: number;
   hp: number;
   maxHp: number;
+  pattern: Pattern | null; // この敵が撃つ弾幕（自分の位置から発射）
 }
 
 export interface Bullet {

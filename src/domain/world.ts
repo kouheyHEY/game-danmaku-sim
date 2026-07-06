@@ -122,18 +122,24 @@ function fireWeapon(world: World, input: ShipInput, dt: number): void {
   }
 }
 
+function emitFrom(world: World, pattern: Pattern, pos: { x: number; y: number }, dt: number): void {
+  const spawns = pattern.emit(world.time, dt, pos, world.rng);
+  for (const s of spawns) {
+    world.bullets.push({
+      id: world.nextId++,
+      pos: { x: s.pos.x, y: s.pos.y },
+      vel: { x: s.vel.x, y: s.vel.y },
+      radius: s.radius,
+      owner: 'enemy',
+    });
+  }
+}
+
 function emitBullets(world: World, dt: number): void {
-  if (world.firingEnabled && world.enemyPattern) {
-    const spawns = world.enemyPattern.emit(world.time, dt, world.emitterPos, world.rng);
-    for (const s of spawns) {
-      world.bullets.push({
-        id: world.nextId++,
-        pos: { x: s.pos.x, y: s.pos.y },
-        vel: { x: s.vel.x, y: s.vel.y },
-        radius: s.radius,
-        owner: 'enemy',
-      });
-    }
+  if (world.firingEnabled) {
+    // 固定エミッタ（レガシー用）＋ 各敵が自分の位置から発射
+    if (world.enemyPattern) emitFrom(world, world.enemyPattern, world.emitterPos, dt);
+    for (const e of world.enemies) if (e.pattern) emitFrom(world, e.pattern, e.pos, dt);
   }
   world.time += dt;
 }
@@ -211,5 +217,6 @@ export function defaultEnemy(id: EntityId, bounds: Rect): Enemy {
     hitRadius: 16,
     hp: 100,
     maxHp: 100,
+    pattern: null,
   };
 }
