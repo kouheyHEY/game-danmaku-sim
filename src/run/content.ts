@@ -5,16 +5,24 @@ import type { Rng } from '../domain/rng';
 
 const DOWN = Math.PI / 2;
 
-/** 雑魚の弾パターン集：すべて自機を狙って撃つ（回転などは使わない）。 */
+/** 雑魚の弾パターン集：すべて自機を狙って撃つ。バリエーション豊富。 */
 const MOB_PATTERNS: Array<(level: number) => Pattern> = [
-  // 自機へ単発連射
-  (l) => aimed({ ways: 1, spread: 0, speed: 150 + l * 8, radius: 5, interval: Math.max(0.5, 0.95 - l * 0.03) }),
-  // 自機狙いの3-way
-  (l) => aimed({ ways: 3, spread: 0.17, speed: 140 + l * 7, radius: 5, interval: Math.max(0.7, 1.15 - l * 0.03) }),
-  // 自機狙いに少しばらけさせる
-  (l) => aimed({ ways: 2, spread: 0.14, jitter: 0.22, speed: 150 + l * 7, radius: 5, interval: Math.max(0.5, 0.9 - l * 0.03) }),
-  // 自機狙いの5-way（level で解禁される密度）
-  (l) => aimed({ ways: 3 + Math.min(2, Math.floor(l / 3)), spread: 0.15, speed: 135 + l * 6, radius: 5, interval: Math.max(0.75, 1.2 - l * 0.03) }),
+  // 単発発射（ゆっくり狙撃）
+  (l) => aimed({ speed: 150 + l * 8, radius: 5, interval: Math.max(0.6, 1.0 - l * 0.03) }),
+  // 連続発射（速い単発ストリーム）
+  (l) => aimed({ speed: 185 + l * 8, radius: 4, interval: Math.max(0.22, 0.42 - l * 0.02) }),
+  // 三連弾（3連射→ため）
+  (l) => aimed({ speed: 205 + l * 8, radius: 5, interval: Math.max(0.95, 1.35 - l * 0.03), burst: 3, burstGap: 0.1 }),
+  // 同時多段（同方向へ速度差の弾列）
+  (l) => aimed({ ways: 4, speedStep: 45, speed: 105 + l * 5, radius: 5, interval: Math.max(0.85, 1.25 - l * 0.03) }),
+  // 同時多段・扇（狙い中心に広がる同時弾）
+  (l) => aimed({ ways: 3 + Math.min(2, Math.floor(l / 3)), spread: 0.16, speed: 150 + l * 6, radius: 5, interval: Math.max(0.8, 1.2 - l * 0.03) }),
+  // すごく遅い弾（じわっと自機へ）
+  (l) => aimed({ speed: 55 + l * 3, radius: 6, interval: Math.max(0.7, 1.1 - l * 0.02) }),
+  // でかい弾（低速・大玉）
+  (l) => aimed({ speed: 95 + l * 4, radius: 11, interval: Math.max(0.95, 1.45 - l * 0.03) }),
+  // 少しばらけた狙い2発
+  (l) => aimed({ ways: 2, spread: 0.14, jitter: 0.2, speed: 150 + l * 7, radius: 5, interval: Math.max(0.5, 0.9 - l * 0.03) }),
 ];
 
 function pickMobPattern(level: number, rng: Rng): Pattern {

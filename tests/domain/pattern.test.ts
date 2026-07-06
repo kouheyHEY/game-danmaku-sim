@@ -32,7 +32,7 @@ describe('弾幕パターンの種類', () => {
   });
 
   it('aimed：自機(aim)の方向へ撃つ', () => {
-    const p = aimed({ ways: 1, spread: 0, speed: 100, radius: 4, interval: 0.2 });
+    const p = aimed({ speed: 100, radius: 4, interval: 0.2 });
     const src = { x: 100, y: 0 };
     const down = p.emit(0, 0.05, src, rng(), { x: 100, y: 200 })[0]; // 真下
     expect(Math.abs(down.vel.x)).toBeLessThan(1e-6);
@@ -40,6 +40,21 @@ describe('弾幕パターンの種類', () => {
     const right = p.emit(0, 0.05, src, rng(), { x: 300, y: 0 })[0]; // 真右
     expect(right.vel.x).toBeGreaterThan(0);
     expect(Math.abs(right.vel.y)).toBeLessThan(1e-6);
+  });
+
+  it('aimed burst：三連弾は1トリガーで3発', () => {
+    const p = aimed({ speed: 100, radius: 5, interval: 1.0, burst: 3, burstGap: 0.1 });
+    // 窓 [0,0.35) に shotT=0,0.1,0.2 の3発が入る
+    const s = p.emit(0, 0.35, { x: 0, y: 0 }, rng(), { x: 0, y: 100 });
+    expect(s).toHaveLength(3);
+  });
+
+  it('aimed speedStep：同時多段は同方向で速度が異なる弾列', () => {
+    const p = aimed({ ways: 3, spread: 0, speedStep: 50, speed: 100, radius: 5, interval: 1.0 });
+    const s = p.emit(0, 0.05, { x: 0, y: 0 }, rng(), { x: 0, y: 100 }); // 真下
+    expect(s).toHaveLength(3);
+    const speeds = s.map((b) => Math.hypot(b.vel.x, b.vel.y)).sort((a, b) => a - b);
+    expect(speeds.map((v) => Math.round(v))).toEqual([100, 150, 200]);
   });
 
   it('ランダム弾：jitter で同条件でも角度がばらつく', () => {

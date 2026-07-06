@@ -94,26 +94,44 @@ export function randomSpread(p: SpreadParams & { jitter: number }): Pattern {
 }
 
 export interface AimedParams {
-  ways: number;
-  spread: number; // 隣り合う弾の角度差 [rad]
   speed: number;
   radius: number;
-  interval: number;
+  interval: number; // 次のトリガー(発射のまとまり)までの間隔 [s]
+  ways?: number; // 同時に撃つ扇の本数（既定1）
+  spread?: number; // 扇の角度差 [rad]（既定0）
+  speedStep?: number; // ways 間の速度差（同時多段の"段"）
+  burst?: number; // 1トリガーで連射する回数（既定1）→ 三連弾など
+  burstGap?: number; // 連射の間隔 [s]（既定0.08）
   jitter?: number; // 狙いのゆらぎ [rad]
 }
 
-/** 自機(aim)を狙って撃つ。aim が無ければ下向き。ways で狙い方向を中心に扇状に。 */
+/**
+ * 自機(aim)を狙って撃つ。aim が無ければ下向き。
+ * ways=同時の扇、burst=連射回数、speedStep=同方向に速度差の弾列（同時多段）。
+ * これ1つで 単発/連続/三連弾/同時多段/遅い弾/でかい弾 を表現する。
+ */
 export function aimed(p: AimedParams): Pattern {
+  const ways = p.ways ?? 1;
+  const spread = p.spread ?? 0;
+  const burst = p.burst ?? 1;
+  const burstGap = p.burstGap ?? 0.08;
+  const speedStep = p.speedStep ?? 0;
   return {
     emit(t, dt, source, rng, aim) {
       const spawns: BulletSpawn[] = [];
       const base = aim ? Math.atan2(aim.y - source.y, aim.x - source.x) : Math.PI / 2;
-      for (const k of fireTimes(t, dt, p.interval)) {
-        void k;
-        for (let i = 0; i < p.ways; i++) {
+      const from = Math.max(0, Math.floor((t - burst * burstGap) / p.interval) - 1);
+      const to = Math.floor((t + dt) / p.interval) + 1;
+      for (let k = from; k <= to; k++) {
+        for (let b = 0; b < burst; b++) {
+          const shotT = k * p.interval + b * burstGap;
+          if (shotT < t || shotT >= t + dt) continue;
           const jit = p.jitter ? (rng.next() - 0.5) * 2 * p.jitter : 0;
-          const a = base + (i - (p.ways - 1) / 2) * p.spread + jit;
-          spawns.push({ pos: { x: source.x, y: source.y }, vel: { x: Math.cos(a) * p.speed, y: Math.sin(a) * p.speed }, radius: p.radius });
+          for (let i = 0; i < ways; i++) {
+            const a = base + (i - (ways - 1) / 2) * spread + jit;
+            const sp = p.speed + i * speedStep;
+            spawns.push({ pos: { x: source.x, y: source.y }, vel: { x: Math.cos(a) * sp, y: Math.sin(a) * sp }, radius: p.radius });
+          }
         }
       }
       return spawns;
