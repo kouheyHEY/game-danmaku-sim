@@ -1,9 +1,8 @@
 import { Application } from 'pixi.js';
 import { FIELD } from '../spec/stage0';
 import type { ShipInput } from '../domain/entities';
-import { startRun, stepRun, chooseReward, type Run } from '../run/run';
-import { RunRenderer, rewardCardRects } from '../render/runRenderer';
-import { createKeyboard } from '../input/keyboard';
+import { titleSession, beginSession, stepSession, type Session } from '../run/session';
+import { SessionRenderer } from '../render/sessionRenderer';
 
 const STEP = 1 / 120; // 固定タイムステップ（決定論・当たり判定の安定）
 const MAX_FRAME = 0.25; // スパイク時の暴走防止
@@ -19,73 +18,59 @@ async function main(): Promise<void> {
     autoDensity: true,
   });
   document.getElementById('app')!.appendChild(app.canvas);
-
   const canvas = app.canvas as HTMLCanvasElement;
-  const hint = document.getElementById('hint');
-  const focusGame = () => {
-    canvas.focus();
-    hint?.classList.add('hidden');
-  };
-  window.addEventListener('focus', () => hint?.classList.add('hidden'));
 
-  // 縦画面をビューポートに収める（スマホ対応）。
+  // 縦画面をビューポートに収める（スマホ対応）。レイアウト確定前に0にならないよう
+  // ResizeObserver で自己修復し、scale が正のときだけ反映する。
   const fit = () => {
-    const controlsH = document.getElementById('controls')?.offsetHeight ?? 0;
-    const scale = Math.min(window.innerWidth / FIELD.w, (window.innerHeight - controlsH - 24) / FIELD.h);
+    const scale = Math.min(window.innerWidth / FIELD.w, window.innerHeight / FIELD.h);
+    if (!(scale > 0)) return;
     canvas.style.width = `${Math.floor(FIELD.w * scale)}px`;
     canvas.style.height = `${Math.floor(FIELD.h * scale)}px`;
   };
   window.addEventListener('resize', fit);
+  new ResizeObserver(fit).observe(document.documentElement);
   fit();
 
-  const kb = createKeyboard();
-  const renderer = new RunRenderer(app.stage);
-
-  let run: Run = startRun();
-  let acc = 0;
-
-  // ドラッグで自機を相対追従（指で隠れないようつかみ位置を保持）。reward 中はカード選択。
-  let dragging = false; // 追従中か
-  let pointerActive = false; // 指/マウスが押下中か
-  let target: { x: number; y: number } | null = null;
-  let grab = { x: 0, y: 0 };
-  let finger = { x: 0, y: 0 }; // 最新の指位置（場座標）
-  let wasLocked = false; // 前フレームが復帰スライド中だったか
-  const toField = (e: PointerEvent) => {
-    const r = canvas.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * FIELD.w, y: ((e.clientY - r.top) / r.height) * FIELD.h };
-  };
-  const rewardHitTest = (p: { x: number; y: number }): number =>
-    rewardCardRects().findIndex((r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
-  // 自機を現在位置でつかみ直す（指への瞬間移動を防ぐ）。
-  const regrab = () => {
-    const ship = run.world.ship;
-    grab = { x: ship.pos.x - finger.x, y: ship.pos.y - finger.y };
-    target = { x: ship.pos.x, y: ship.pos.y };
-  };
-
-  // スマホでの誤操作（スクロール/長押しメニュー/ピンチズーム/ダブルタップ拡大）を無効化。
+  // スマホの誤操作（スクロール/長押しメニュー/ピンチズーム）を無効化。
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
   document.addEventListener('gesturestart', (e) => e.preventDefault());
 
+  const renderer = new SessionRenderer(app.stage);
+  let session: Session = titleSession();
+  let acc = 0;
+
+  // ドラッグで自機を相対追従。復帰スライド完了時は指へ瞬間移動しないようつかみ直す。
+  let dragging = false;
+  let pointerActive = false;
+  let target: { x: number; y: number } | null = null;
+  let grab = { x: 0, y: 0 };
+  let finger = { x: 0, y: 0 };
+  let wasLocked = false;
+  const toField = (e: PointerEvent) => {
+    const r = canvas.getBoundingClientRect();
+    return { x: ((e.clientX - r.left) / r.width) * FIELD.w, y: ((e.clientY - r.top) / r.height) * FIELD.h };
+  };
+  const regrab = () => {
+    const ship = session.world.ship;
+    grab = { x: ship.pos.x - finger.x, y: ship.pos.y - finger.y };
+    target = { x: ship.pos.x, y: ship.pos.y };
+  };
+
   canvas.tabIndex = 0;
   canvas.addEventListener('pointerdown', (e) => {
-    focusGame();
-    if (run.phase === 'gameover' || run.phase === 'win') {
-      run = startRun(); // タップでリトライ（スマホ対応）
+    canvas.focus();
+    if (session.phase === 'title' || session.phase === 'gameover') {
+      session = beginSession(); // Tap to Start / restart
       acc = 0;
-      return;
-    }
-    if (run.phase === 'reward') {
-      const i = rewardHitTest(toField(e));
-      if (i >= 0) chooseReward(run, i);
+      wasLocked = false;
       return;
     }
     pointerActive = true;
     finger = toField(e);
     regrab();
-    dragging = run.world.ship.respawnUntil <= run.world.time; // 復帰スライド中は追従しない
+    dragging = session.world.ship.respawnUntil <= session.world.time;
     canvas.setPointerCapture?.(e.pointerId);
   });
   canvas.addEventListener('pointermove', (e) => {
@@ -100,37 +85,26 @@ async function main(): Promise<void> {
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
 
-  if (document.hasFocus()) focusGame();
-
   app.ticker.add((ticker) => {
-    if (run.phase === 'reward') {
-      for (const key of ['1', '2', '3']) if (kb.pressed(key)) chooseReward(run, Number(key) - 1);
-    }
-    if ((run.phase === 'gameover' || run.phase === 'win') && kb.pressed('r')) {
-      run = startRun();
-      acc = 0;
-    }
-
-    if (run.phase === 'fighting') {
-      const ship = run.world.ship;
-      const locked = ship.respawnUntil > run.world.time; // 復帰スライド中は追従停止
-      if (wasLocked && !locked && pointerActive) regrab(); // 復帰完了：指へ瞬間移動させずつかみ直す
+    if (session.phase === 'playing') {
+      const ship = session.world.ship;
+      const locked = ship.respawnUntil > session.world.time;
+      if (wasLocked && !locked && pointerActive) regrab();
       if (locked) dragging = false;
       else if (pointerActive && !dragging) dragging = true;
       wasLocked = locked;
 
       acc += Math.min(ticker.deltaMS / 1000, MAX_FRAME);
-      const input: ShipInput = dragging && target ? { moveX: 0, moveY: 0, target } : kb.sample();
+      const input: ShipInput = dragging && target ? { moveX: 0, moveY: 0, target } : { moveX: 0, moveY: 0 };
       while (acc >= STEP) {
-        stepRun(run, input, STEP);
+        stepSession(session, input, STEP);
         acc -= STEP;
-        if (run.phase !== 'fighting') break;
+        if (session.phase !== 'playing') break;
       }
     } else {
       wasLocked = false;
     }
-
-    renderer.draw(run);
+    renderer.draw(session);
   });
 }
 

@@ -12,8 +12,10 @@ export interface World {
   ship: Ship;
   enemies: Enemy[];
   bullets: Bullet[];
-  enemyPattern: Pattern | null; // 現フェーズの敵弾（①弾幕/②③一方向/④なし）。Director が設定
-  firingEnabled: boolean; // 遷移時に「弾を止める」を表現
+  enemyPattern: Pattern | null; // 敵弾パターン
+  emitterPos: Vec2; // 敵弾の発生源（上部中央固定）。敵の有無に依らず雨を降らせる
+  firingEnabled: boolean;
+  dodged: number; // 画面外に消えた敵弾の数（＝スコア）
   nextId: EntityId;
 }
 
@@ -35,7 +37,9 @@ export function makeWorld(init: WorldInit): World {
     enemies: init.enemies ?? [],
     bullets: [],
     enemyPattern: null,
+    emitterPos: { x: init.bounds.x + init.bounds.w / 2, y: init.bounds.y + 8 },
     firingEnabled: true,
+    dodged: 0,
     nextId: 1,
   };
 }
@@ -119,9 +123,8 @@ function fireWeapon(world: World, input: ShipInput, dt: number): void {
 }
 
 function emitBullets(world: World, dt: number): void {
-  const enemy = world.enemies[0];
-  if (world.firingEnabled && world.enemyPattern && enemy) {
-    const spawns = world.enemyPattern.emit(world.time, dt, enemy.pos, world.rng);
+  if (world.firingEnabled && world.enemyPattern) {
+    const spawns = world.enemyPattern.emit(world.time, dt, world.emitterPos, world.rng);
     for (const s of spawns) {
       world.bullets.push({
         id: world.nextId++,
@@ -143,13 +146,17 @@ function moveBullets(world: World, dt: number): void {
 
 function cullBullets(world: World): void {
   const { bounds } = world;
-  world.bullets = world.bullets.filter(
-    (b) =>
+  const survivors: Bullet[] = [];
+  for (const b of world.bullets) {
+    const inside =
       b.pos.x >= bounds.x - CULL_MARGIN &&
       b.pos.x <= bounds.x + bounds.w + CULL_MARGIN &&
       b.pos.y >= bounds.y - CULL_MARGIN &&
-      b.pos.y <= bounds.y + bounds.h + CULL_MARGIN,
-  );
+      b.pos.y <= bounds.y + bounds.h + CULL_MARGIN;
+    if (inside) survivors.push(b);
+    else if (b.owner === 'enemy') world.dodged += 1; // 画面外に消えた敵弾＝避けた
+  }
+  world.bullets = survivors;
 }
 
 function detectCollisions(world: World): CollisionEvent[] {
