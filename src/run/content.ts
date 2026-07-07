@@ -47,19 +47,29 @@ export function mobInterval(level: number): number {
   return Math.max(0.5, 1.6 - level * 0.14);
 }
 
-/** ボスの弾幕集。回転・逆回転・全方位リング・ばらまき。ランダムに1つ。 */
-const BOSS_PATTERNS: Array<(level: number) => Pattern> = [
-  (l) => rotating({ ways: 8 + Math.min(6, l), spread: 0.3, rotStep: 0.25, speed: 125 + l * 6, radius: 6, interval: 0.14 }),
-  (l) => rotating({ ways: 4, spread: 0.9, rotStep: -0.36, speed: 120 + l * 6, radius: 6, interval: 0.1 }), // 逆回転の腕
-  (l) => {
-    const ways = 14 + Math.min(8, l);
-    return fan({ ways, spread: (Math.PI * 2) / ways, speed: 105 + l * 5, radius: 6, interval: 0.5 }); // 全方位リング
+/** ボスの弾幕集（重み付き抽選）。回転・逆回転・全方位リング・ばらまき。 */
+const BOSS_PATTERNS: Array<{ weight: number; make: (level: number) => Pattern }> = [
+  { weight: 3, make: (l) => rotating({ ways: 8 + Math.min(6, l), spread: 0.3, rotStep: 0.25, speed: 125 + l * 6, radius: 6, interval: 0.14 }) },
+  { weight: 3, make: (l) => rotating({ ways: 4, spread: 0.9, rotStep: -0.36, speed: 120 + l * 6, radius: 6, interval: 0.1 }) }, // 逆回転の腕
+  {
+    weight: 3,
+    make: (l) => {
+      const ways = 14 + Math.min(8, l);
+      return fan({ ways, spread: (Math.PI * 2) / ways, speed: 105 + l * 5, radius: 6, interval: 0.5 }); // 全方位リング
+    },
   },
-  (l) => randomSpread({ ways: 8 + l, spread: 0.3, jitter: 0.6, speed: 130 + l * 5, radius: 6, interval: 0.12, baseAngle: DOWN }), // 下向きばらまき
+  // 下向きばらまき：選ばれる確率を下げ（weight 2＝約18%）、密度も少し下げる（弾数減・間隔増）。
+  { weight: 2, make: (l) => randomSpread({ ways: 6 + Math.floor(l / 2), spread: 0.3, jitter: 0.6, speed: 130 + l * 5, radius: 6, interval: 0.18, baseAngle: DOWN }) },
 ];
 
 function pickBossPattern(level: number, rng: Rng): Pattern {
-  return BOSS_PATTERNS[Math.floor(rng.next() * BOSS_PATTERNS.length)](level);
+  const total = BOSS_PATTERNS.reduce((s, p) => s + p.weight, 0);
+  let r = rng.next() * total;
+  for (const p of BOSS_PATTERNS) {
+    r -= p.weight;
+    if (r < 0) return p.make(level);
+  }
+  return BOSS_PATTERNS[BOSS_PATTERNS.length - 1].make(level);
 }
 
 /** たまに出る動く標的（ボス）。横に往復しつつ弾幕を撒く。 */
