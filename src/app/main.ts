@@ -3,6 +3,11 @@ import { FIELD } from '../spec/stage0';
 import type { ShipInput } from '../domain/entities';
 import { titleSession, beginSession, stepSession, type Session } from '../run/session';
 import { SessionRenderer } from '../render/sessionRenderer';
+import { mountDebugPanel, debugEnabled, type DebugButton } from '../render/debugPanel';
+import {
+  debugSpawnBoss, debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
+  debugAddMaxHp, debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, WEAPON_UPGRADES,
+} from '../run/debug';
 
 const STEP = 1 / 120; // 固定タイムステップ（決定論・当たり判定の安定）
 const MAX_FRAME = 0.25; // スパイク時の暴走防止
@@ -35,6 +40,8 @@ async function main(): Promise<void> {
   // スマホの誤操作（スクロール/スワイプ/長押しメニュー/ピンチズーム）を無効化。
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   const blockTouch = (e: Event) => {
+    const t = e.target as Element | null;
+    if (t?.closest?.('#debug')) return; // デバッグUIのタップは通す
     if ((e as { cancelable: boolean }).cancelable) e.preventDefault();
   };
   document.addEventListener('touchstart', blockTouch, { passive: false });
@@ -88,6 +95,24 @@ async function main(): Promise<void> {
   };
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
+
+  // デバッグパネル（開発時 or ?debug 付きURL）：任意の動作を好きに発動できる。
+  if (debugEnabled()) {
+    const buttons: DebugButton[] = [
+      { label: 'ボス出現', onClick: () => debugSpawnBoss(session) },
+      { label: '雑魚出現', onClick: () => debugSpawnMob(session) },
+      { label: 'Lv+強化', onClick: () => debugLevelUp(session) },
+      { label: '全回復', onClick: () => debugFullHeal(session) },
+      { label: '最大HP+1', onClick: () => debugAddMaxHp(session, 1) },
+      { label: '被弾', onClick: () => debugHurt(session) },
+      { label: '無敵', onClick: () => debugToggleInvuln(session) },
+      { label: '弾消し', onClick: () => debugClearBullets(session) },
+      { label: 'スコア+100', onClick: () => debugAddScore(session, 100) },
+      { label: 'リスタート', onClick: () => { session = beginSession(); acc = 0; wasLocked = false; } },
+      ...WEAPON_UPGRADES.map((u) => ({ label: '⚑' + u.name, onClick: () => debugGiveUpgrade(session, u) })),
+    ];
+    mountDebugPanel(buttons);
+  }
 
   app.ticker.add((ticker) => {
     if (session.phase === 'playing') {
