@@ -15,14 +15,16 @@ const RADIUS_CAP = 10;
  * 特に「弾を大きく」は直線単発のままでも効くので、拡散を引けなくても快適になる。
  */
 export const WEAPON_UPGRADES: WeaponUpgrade[] = [
-  // 弾数を増やして横に広げる（1本ずつ。直線→2→3→…と奇偶を切り替え）
+  // 弾数を増やして横に広げる（奇数維持＝常に中央弾あり。直線→3、以降+2）
   {
-    name: '弾数+1',
+    name: '弾数+2',
     apply(l) {
-      const cur = l.weapon.kind === 'straight' ? 1 : l.weapon.ways;
-      const next = cur + 1;
-      l.weapon.ways = next;
-      l.weapon.kind = next % 2 === 0 ? 'even' : 'odd';
+      if (l.weapon.kind === 'straight') {
+        l.weapon.kind = 'odd';
+        l.weapon.ways = 3;
+      } else {
+        l.weapon.ways += 2;
+      }
     },
   },
   // 弾を大きく＝当たり幅UP。単発のままでも off-center の雑魚を捉えられる（拡散と同等の快適さ）
