@@ -13,6 +13,20 @@ describe('武器強化プール（弾数+2一強の解消）', () => {
     }
   });
 
+  it('弾数+1：1本ずつ増える（直線→2→3→4、奇偶で kind が切替）', () => {
+    const l = startingLoadout();
+    const inc = WEAPON_UPGRADES.find((u) => u.name === '弾数+1')!;
+    inc.apply(l);
+    expect(l.weapon.ways).toBe(2);
+    expect(l.weapon.kind).toBe('even');
+    inc.apply(l);
+    expect(l.weapon.ways).toBe(3);
+    expect(l.weapon.kind).toBe('odd');
+    inc.apply(l);
+    expect(l.weapon.ways).toBe(4);
+    expect(l.weapon.kind).toBe('even');
+  });
+
   it('直線単発でも「弾を大きく」でカバー(半径)が上がる＝拡散に頼らず快適化', () => {
     const l = startingLoadout();
     expect(l.weapon.kind).toBe('straight');
@@ -25,7 +39,7 @@ describe('武器強化プール（弾数+2一強の解消）', () => {
   it('カバー(横幅)を増やす強化が複数ある（弾数+2 だけに依存しない）', () => {
     // 直線状態で利用可能な「快適さに効く」強化が2つ以上ある
     const l = startingLoadout();
-    const coverage = WEAPON_UPGRADES.filter((u) => (!u.available || u.available(l)) && ['弾数+2', '弾を大きく', '強撃'].includes(u.name));
+    const coverage = WEAPON_UPGRADES.filter((u) => (!u.available || u.available(l)) && ['弾数+1', '弾を大きく', '強撃'].includes(u.name));
     expect(coverage.length).toBeGreaterThanOrEqual(2);
   });
 });
