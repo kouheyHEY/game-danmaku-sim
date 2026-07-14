@@ -1,8 +1,10 @@
 import { Application } from 'pixi.js';
 import { FIELD } from '../spec/stage0';
 import type { ShipInput } from '../domain/entities';
-import { titleSession, beginSession, stepSession, chooseSpecialUpgrade, type Session } from '../run/session';
-import { SessionRenderer, specialRewardCardRects } from '../render/sessionRenderer';
+import {
+  titleSession, beginSession, stepSession, chooseSpecialUpgrade, pauseSession, resumeSession, type Session,
+} from '../run/session';
+import { SessionRenderer, pauseButtonRect, specialRewardCardRects } from '../render/sessionRenderer';
 import { mountDebugPanel, debugEnabled, type DebugButton } from '../render/debugPanel';
 import {
   debugSpawnBoss, debugSpawnStrongBoss, debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
@@ -68,6 +70,12 @@ async function main(): Promise<void> {
     grab = { x: ship.pos.x - finger.x, y: ship.pos.y - finger.y };
     target = { x: ship.pos.x, y: ship.pos.y };
   };
+  const stopDragging = () => {
+    pointerActive = false;
+    dragging = false;
+    target = null;
+    wasLocked = false;
+  };
 
   canvas.tabIndex = 0;
   canvas.addEventListener('pointerdown', (e) => {
@@ -78,15 +86,30 @@ async function main(): Promise<void> {
       wasLocked = false;
       return;
     }
+    if (session.phase === 'paused') {
+      resumeSession(session);
+      acc = 0;
+      stopDragging();
+      return;
+    }
+    const p = toField(e);
+    if (session.phase === 'playing') {
+      const r = pauseButtonRect();
+      if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) {
+        pauseSession(session);
+        acc = 0;
+        stopDragging();
+        return;
+      }
+    }
     if (session.phase === 'reward') {
-      const p = toField(e);
       const index = specialRewardCardRects().findIndex((r) =>
         p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
       if (index >= 0) chooseSpecialUpgrade(session, index);
       return;
     }
     pointerActive = true;
-    finger = toField(e);
+    finger = p;
     regrab();
     dragging = session.world.ship.respawnUntil <= session.world.time;
     canvas.setPointerCapture?.(e.pointerId);
@@ -95,13 +118,18 @@ async function main(): Promise<void> {
     finger = toField(e);
     if (dragging) target = { x: finger.x + grab.x, y: finger.y + grab.y };
   });
-  const endDrag = () => {
-    pointerActive = false;
-    dragging = false;
-    target = null;
-  };
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('pointerup', stopDragging);
+  canvas.addEventListener('pointercancel', stopDragging);
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'p' && e.key !== 'Escape') return;
+    if (session.phase === 'playing') pauseSession(session);
+    else if (session.phase === 'paused') resumeSession(session);
+    else return;
+    acc = 0;
+    stopDragging();
+    e.preventDefault();
+  });
 
   // デバッグパネル（開発時 or ?debug 付きURL）：任意の動作を好きに発動できる。
   if (debugEnabled()) {

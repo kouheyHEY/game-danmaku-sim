@@ -13,7 +13,7 @@ const BOSS_FIRST = 12; // 最初のボスまで [s]
 const BOSS_INTERVAL = 16; // 撃破後、次のボスまで [s]
 const ESCAPE_MARGIN = 40; // 画面下にこれだけ抜けたら退場
 
-export type Phase = 'title' | 'playing' | 'reward' | 'gameover';
+export type Phase = 'title' | 'playing' | 'paused' | 'reward' | 'gameover';
 
 export interface Toast {
   text: string;
@@ -76,6 +76,18 @@ export function titleSession(seed = Date.now()): Session {
   const s = beginSession(seed);
   s.phase = 'title';
   return s;
+}
+
+export function pauseSession(session: Session): boolean {
+  if (session.phase !== 'playing') return false;
+  session.phase = 'paused';
+  return true;
+}
+
+export function resumeSession(session: Session): boolean {
+  if (session.phase !== 'paused') return false;
+  session.phase = 'playing';
+  return true;
 }
 
 function respawnSlide(w: World): { x: number; y: number } {

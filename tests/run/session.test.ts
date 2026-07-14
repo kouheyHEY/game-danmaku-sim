@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { titleSession, beginSession, stepSession, chooseSpecialUpgrade } from '../../src/run/session';
+import {
+  titleSession, beginSession, stepSession, chooseSpecialUpgrade, pauseSession, resumeSession,
+} from '../../src/run/session';
 import { randomWeaponUpgrade } from '../../src/run/upgrades';
 import { startingLoadout } from '../../src/run/loadout';
 import { makeRng } from '../../src/domain/rng';
@@ -7,6 +9,17 @@ import type { Bullet, ShipInput } from '../../src/domain/entities';
 
 const DT = 1 / 120;
 const STILL: ShipInput = { moveX: 0, moveY: 0 };
+
+it('一時停止中はゲームが進まず、再開後に進む', () => {
+  const s = beginSession(1);
+  const time = s.world.time;
+  expect(pauseSession(s)).toBe(true);
+  stepSession(s, STILL, 1);
+  expect(s.world.time).toBe(time);
+  expect(resumeSession(s)).toBe(true);
+  stepSession(s, STILL, DT);
+  expect(s.world.time).toBeGreaterThan(time);
+});
 
 function stepFor(session: ReturnType<typeof beginSession>, seconds: number) {
   const n = Math.round(seconds / DT);

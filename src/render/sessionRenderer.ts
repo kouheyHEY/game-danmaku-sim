@@ -20,6 +20,10 @@ export function specialRewardCardRects(): RewardCardRect[] {
   ];
 }
 
+export function pauseButtonRect(): RewardCardRect {
+  return { x: FIELD.w / 2 - 28, y: 8, w: 56, h: 38 };
+}
+
 const style = (size: number, fill: number, bold = false) => ({
   fill,
   fontSize: size,
@@ -41,6 +45,8 @@ export class SessionRenderer {
   private readonly scoreNum: Text;
   private readonly killsText: Text;
   private readonly toast: Text;
+  private readonly pauseG = new Graphics();
+  private readonly pauseText: Text;
   private readonly dim = new Graphics();
   private readonly rewardG = new Graphics();
   private readonly rewardTitle: Text;
@@ -69,6 +75,9 @@ export class SessionRenderer {
     this.toast.anchor.set(0.5, 0);
     this.toast.position.set(FIELD.w / 2, 64);
 
+    this.pauseText = new Text({ text: 'II', style: style(17, 0xffffff, true) });
+    this.pauseText.anchor.set(0.5);
+
     this.center = new Text({ text: '', style: style(28, 0xffffff, true) });
     this.center.anchor.set(0.5);
     this.center.position.set(FIELD.w / 2, FIELD.h * 0.44);
@@ -87,7 +96,7 @@ export class SessionRenderer {
     });
 
     stage.addChild(
-      this.hpText, this.scoreLabel, this.scoreNum, this.killsText, this.toast,
+      this.hpText, this.scoreLabel, this.scoreNum, this.killsText, this.toast, this.pauseG, this.pauseText,
       this.dim, this.rewardG, this.rewardTitle, ...this.rewardTexts, this.center,
     );
   }
@@ -144,12 +153,25 @@ export class SessionRenderer {
     this.scoreNum.text = String(session.score);
     this.killsText.text = `撃破 ${session.kills}`;
     const playing = session.phase === 'playing';
-    this.scoreLabel.visible = playing;
-    this.scoreNum.visible = playing;
-    this.killsText.visible = playing;
-    this.hpText.visible = playing;
+    const active = playing || session.phase === 'paused';
+    this.scoreLabel.visible = active;
+    this.scoreNum.visible = active;
+    this.killsText.visible = active;
+    this.hpText.visible = active;
     this.toast.text = session.toast?.text ?? '';
-    this.toast.visible = playing && !!session.toast;
+    this.toast.visible = active && !!session.toast;
+
+    const pauseRect = pauseButtonRect();
+    this.pauseG.clear();
+    this.pauseG.visible = playing;
+    this.pauseText.visible = playing;
+    if (playing) {
+      this.pauseG
+        .roundRect(pauseRect.x, pauseRect.y, pauseRect.w, pauseRect.h, 12)
+        .fill({ color: 0x111827, alpha: 0.76 })
+        .stroke({ color: 0xffffff, alpha: 0.5, width: 1.5 });
+      this.pauseText.position.set(pauseRect.x + pauseRect.w / 2, pauseRect.y + pauseRect.h / 2);
+    }
 
     this.dim.clear();
     this.rewardG.clear();
@@ -176,6 +198,10 @@ export class SessionRenderer {
         text.visible = !!choice;
       });
       this.center.visible = false;
+    } else if (session.phase === 'paused') {
+      this.dim.rect(0, 0, FIELD.w, FIELD.h).fill({ color: 0x030712, alpha: 0.76 });
+      this.center.text = 'PAUSED\n\nTap to resume';
+      this.center.visible = true;
     } else {
       this.center.visible = false;
     }
