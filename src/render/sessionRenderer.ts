@@ -4,8 +4,10 @@ import { RESPAWN_TIME, type Session } from '../run/session';
 
 const BOSS = 0xff5d73;
 const ENEMY_BULLET = 0xffd166;
+const ENEMY_BULLET_OUTLINE = 0x5c2d10;
 const PLAYER_BULLET = 0x67e8f9;
 const SHIP = 0x4ea1ff;
+const PLAYER_BULLET_VISUAL_MAX = 7;
 
 const style = (size: number, fill: number, bold = false) => ({
   fill,
@@ -18,7 +20,8 @@ const style = (size: number, fill: number, bold = false) => ({
 
 /** Session を読んで描く：弾/自機/ボス＋右上スコア＋Tap to Start／GameOver。 */
 export class SessionRenderer {
-  private readonly bulletsG = new Graphics();
+  private readonly playerBulletsG = new Graphics();
+  private readonly enemyBulletsG = new Graphics();
   private readonly fxG = new Graphics();
   private readonly bossG = new Graphics();
   private readonly shipG = new Graphics();
@@ -31,7 +34,9 @@ export class SessionRenderer {
   private readonly center: Text;
 
   constructor(stage: Container) {
-    stage.addChild(this.bulletsG, this.fxG, this.bossG, this.shipG);
+    // 安全な自弾は奥、避けるべき敵弾は敵より手前、自機と白い当たり判定は最前面。
+    // 強化で自弾が大きく・多くなっても、危険情報が隠れない描画順を固定する。
+    stage.addChild(this.playerBulletsG, this.bossG, this.enemyBulletsG, this.fxG, this.shipG);
 
     this.hpText = new Text({ text: '', style: { ...style(15, 0xff8fa3), align: 'left' } });
     this.hpText.position.set(8, 8);
@@ -61,9 +66,18 @@ export class SessionRenderer {
     const w = session.world;
     const ship = w.ship;
 
-    this.bulletsG.clear();
+    this.playerBulletsG.clear();
+    this.enemyBulletsG.clear();
     for (const b of w.bullets) {
-      this.bulletsG.circle(b.pos.x, b.pos.y, b.radius).fill({ color: b.owner === 'player' ? PLAYER_BULLET : ENEMY_BULLET });
+      if (b.owner === 'player') {
+        // 当たり判定半径は domain の b.radius のまま。見た目だけ抑え、画面占有を制限する。
+        const visualRadius = Math.min(b.radius, PLAYER_BULLET_VISUAL_MAX);
+        this.playerBulletsG.circle(b.pos.x, b.pos.y, visualRadius).fill({ color: PLAYER_BULLET, alpha: 0.46 });
+      } else {
+        // 暗い輪郭＋明るいコアで、自弾や背景の上でも敵弾の境界を保つ。
+        this.enemyBulletsG.circle(b.pos.x, b.pos.y, b.radius + 2).fill({ color: ENEMY_BULLET_OUTLINE, alpha: 0.96 });
+        this.enemyBulletsG.circle(b.pos.x, b.pos.y, b.radius).fill({ color: ENEMY_BULLET });
+      }
     }
 
     this.bossG.clear();
