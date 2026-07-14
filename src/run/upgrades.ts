@@ -12,6 +12,7 @@ export interface SpecialUpgrade extends WeaponUpgrade {
 }
 
 const RADIUS_CAP = 10;
+const SPREAD_FLOOR = 0.05;
 
 /**
  * ボス撃破時にランダムで1つ適用する弾幕強化（選択UIなし）。
@@ -43,15 +44,15 @@ export const WEAPON_UPGRADES: WeaponUpgrade[] = [
       l.weapon.radius = Math.min(RADIUS_CAP, l.weapon.radius + 1);
     },
   },
-  // 拡散角は多方向のときだけ意味がある
-  { name: '拡散UP', apply: (l) => void (l.weapon.spread = Math.min(0.5, l.weapon.spread + 0.06)), available: (l) => l.weapon.kind !== 'straight' && l.weapon.spread < 0.5 },
+  // 弾数が増えたときも射線が画面外へ散りすぎないよう、角度強化は収束方向だけにする
+  { name: '収束UP', apply: (l) => void (l.weapon.spread = Math.max(SPREAD_FLOOR, l.weapon.spread - 0.03)), available: (l) => l.weapon.kind !== 'straight' && l.weapon.spread > SPREAD_FLOOR },
 ];
 
 /** 3体ごとの強敵ボスだけが落とす、通常より大きくビルドを変える強化。 */
 export const SPECIAL_UPGRADES: SpecialUpgrade[] = [
   {
-    name: 'ワイドバースト',
-    description: '弾数+4・拡散角UP',
+    name: 'フォーカスバースト',
+    description: '弾数+4・拡散角を絞る',
     apply(l) {
       if (l.weapon.kind === 'straight') {
         l.weapon.kind = 'odd';
@@ -59,7 +60,7 @@ export const SPECIAL_UPGRADES: SpecialUpgrade[] = [
       } else {
         l.weapon.ways += 4;
       }
-      l.weapon.spread = Math.min(0.5, l.weapon.spread + 0.08);
+      l.weapon.spread = Math.max(SPREAD_FLOOR, l.weapon.spread - 0.05);
     },
   },
   {

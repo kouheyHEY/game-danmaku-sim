@@ -137,12 +137,12 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     expect(s.phase).toBe('gameover');
   });
 
-  it('randomWeaponUpgrade：直線のうちは拡散UPを選ばない', () => {
+  it('randomWeaponUpgrade：直線のうちは収束UPを選ばない', () => {
     const l = startingLoadout();
     for (let seed = 0; seed < 30; seed++) {
       const l2 = startingLoadout();
       const name = randomWeaponUpgrade(makeRng(seed), l2);
-      expect(name).not.toBe('拡散UP');
+      expect(name).not.toBe('収束UP');
     }
     expect(l.weapon.kind).toBe('straight');
   });

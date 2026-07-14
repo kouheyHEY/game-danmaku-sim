@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { WEAPON_UPGRADES, drawSpecialUpgrades, randomWeaponUpgrade } from '../../src/run/upgrades';
+import { SPECIAL_UPGRADES, WEAPON_UPGRADES, drawSpecialUpgrades, randomWeaponUpgrade } from '../../src/run/upgrades';
 import { startingLoadout } from '../../src/run/loadout';
 import { makeRng } from '../../src/domain/rng';
 
@@ -38,6 +38,28 @@ describe('武器強化プール（弾数+2一強の解消）', () => {
     const l = startingLoadout();
     const coverage = WEAPON_UPGRADES.filter((u) => (!u.available || u.available(l)) && ['弾数+2', '弾を大きく', '強撃'].includes(u.name));
     expect(coverage.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('角度強化は拡散を広げず、弾道を中央へ絞る', () => {
+    const l = startingLoadout();
+    l.weapon.kind = 'odd';
+    l.weapon.ways = 5;
+    const focus = WEAPON_UPGRADES.find((u) => u.name === '収束UP')!;
+    const spread0 = l.weapon.spread;
+    focus.apply(l);
+    expect(l.weapon.spread).toBeLessThan(spread0);
+  });
+
+  it('フォーカスバーストも弾数を増やしながら拡散角を絞る', () => {
+    const l = startingLoadout();
+    l.weapon.kind = 'odd';
+    l.weapon.ways = 3;
+    const focusBurst = SPECIAL_UPGRADES.find((u) => u.name === 'フォーカスバースト')!;
+    const ways0 = l.weapon.ways;
+    const spread0 = l.weapon.spread;
+    focusBurst.apply(l);
+    expect(l.weapon.ways).toBe(ways0 + 4);
+    expect(l.weapon.spread).toBeLessThan(spread0);
   });
 
   it('特別強化は重複なしで2択になり、通常強化より大きく変化する', () => {
