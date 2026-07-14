@@ -1,5 +1,5 @@
 import type { Session } from './session';
-import { makeBoss, makeMob } from './content';
+import { makeBoss, makeMob, makeStrongBoss } from './content';
 import { WEAPON_UPGRADES, randomWeaponUpgrade, type WeaponUpgrade } from './upgrades';
 import { buildWeapon } from './weapon';
 
@@ -13,6 +13,15 @@ export function debugSpawnBoss(s: Session): void {
   const id = s.nextEnemyId++;
   s.world.enemies.push(makeBoss(id, s.level, s.world.bounds, s.rng));
   s.bossId = id;
+  s.bossIsStrong = false;
+}
+
+export function debugSpawnStrongBoss(s: Session): void {
+  if (s.bossId != null) return;
+  const id = s.nextEnemyId++;
+  s.world.enemies.push(makeStrongBoss(id, s.level, s.world.bounds, s.rng));
+  s.bossId = id;
+  s.bossIsStrong = true;
 }
 
 export function debugSpawnMob(s: Session): void {

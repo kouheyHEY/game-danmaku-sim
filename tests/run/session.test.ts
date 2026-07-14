@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { titleSession, beginSession, stepSession } from '../../src/run/session';
+import { titleSession, beginSession, stepSession, chooseSpecialUpgrade } from '../../src/run/session';
 import { randomWeaponUpgrade } from '../../src/run/upgrades';
 import { startingLoadout } from '../../src/run/loadout';
 import { makeRng } from '../../src/domain/rng';
@@ -77,6 +77,41 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     expect(s.kills).toBe(kills0 + 1);
     expect(JSON.stringify(s.loadout.weapon)).not.toBe(wpnBefore); // 強化された
     expect(s.toast).not.toBeNull();
+    expect(s.nextBossAt).toBeGreaterThan(s.world.time);
+  });
+
+  it('3体目ごとに通常より硬い強敵ボスが出現する', () => {
+    const s = beginSession(1);
+    s.level = 2; // 次が3体目
+    s.nextMobAt = 1e9;
+    s.nextBossAt = s.world.time + 0.05;
+    stepFor(s, 0.2);
+    expect(s.bossIsStrong).toBe(true);
+    const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
+    expect(boss.hitRadius).toBe(28);
+    expect(boss.maxHp).toBeGreaterThan(150);
+  });
+
+  it('強敵ボス撃破で2択が出て、選択後に強化を反映して進行再開する', () => {
+    const s = beginSession(4);
+    s.level = 2;
+    s.world.ship.invulnUntil = 1e9;
+    s.nextMobAt = 1e9;
+    s.nextBossAt = s.world.time + 0.05;
+    stepFor(s, 0.2);
+    s.world.bullets.push({ id: 999, pos: { x: 10, y: 10 }, vel: { x: 0, y: 0 }, radius: 5, owner: 'enemy' });
+    s.world.enemies.find((e) => e.id === s.bossId)!.hp = 0;
+    stepSession(s, STILL, DT);
+
+    expect(s.phase).toBe('reward');
+    expect(s.level).toBe(3);
+    expect(s.specialChoices).toHaveLength(2);
+    expect(s.world.bullets).toHaveLength(0);
+    const before = JSON.stringify(s.loadout);
+    expect(chooseSpecialUpgrade(s, 0)).toBe(true);
+    expect(s.phase).toBe('playing');
+    expect(s.specialChoices).toHaveLength(0);
+    expect(JSON.stringify(s.loadout)).not.toBe(before);
     expect(s.nextBossAt).toBeGreaterThan(s.world.time);
   });
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { beginSession } from '../../src/run/session';
 import {
-  debugSpawnBoss, debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
+  debugSpawnBoss, debugSpawnStrongBoss, debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
   debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, WEAPON_UPGRADES,
 } from '../../src/run/debug';
 
@@ -16,6 +16,15 @@ describe('デバッグアクション', () => {
     const n = s.world.enemies.length;
     debugSpawnBoss(s);
     expect(s.world.enemies.length).toBe(n);
+  });
+
+  it('強敵ボス出現：通常より大きく硬い強敵として扱われる', () => {
+    const s = beginSession(1);
+    debugSpawnStrongBoss(s);
+    expect(s.bossIsStrong).toBe(true);
+    const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
+    expect(boss.hitRadius).toBe(28);
+    expect(boss.maxHp).toBeGreaterThan(100);
   });
 
   it('雑魚出現：HP1の敵が追加される', () => {

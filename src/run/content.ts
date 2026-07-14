@@ -85,3 +85,26 @@ export function makeBoss(id: number, level: number, bounds: Rect, rng: Rng): Ene
     pattern: pickBossPattern(level, rng),
   };
 }
+
+/** 3体ごとに現れる強敵ボス。通常ボスより硬く、大きく、密度の高い専用弾幕を持つ。 */
+export function makeStrongBoss(id: number, level: number, bounds: Rect, rng: Rng): Enemy {
+  const patterns: Array<(l: number) => Pattern> = [
+    (l) => rotating({ ways: 12 + Math.min(6, l), spread: 0.24, rotStep: 0.22, speed: 145 + l * 6, radius: 7, interval: 0.11 }),
+    (l) => {
+      const ways = 18 + Math.min(8, l);
+      return fan({ ways, spread: (Math.PI * 2) / ways, speed: 125 + l * 5, radius: 7, interval: 0.36 });
+    },
+    (l) => aimed({ ways: 5, spread: 0.14, speed: 170 + l * 6, radius: 7, interval: 0.9, burst: 3, burstGap: 0.1 }),
+  ];
+  const baseHp = 60 + level * 45;
+  const hp = Math.round(baseHp * 2.1);
+  return {
+    id,
+    pos: { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h * 0.16 },
+    vel: { x: 90 + level * 8, y: 0 },
+    hitRadius: 28,
+    hp,
+    maxHp: hp,
+    pattern: patterns[Math.floor(rng.next() * patterns.length)](level),
+  };
+}

@@ -7,6 +7,10 @@ export interface WeaponUpgrade {
   available?(l: PlayerLoadout): boolean;
 }
 
+export interface SpecialUpgrade extends WeaponUpgrade {
+  description: string;
+}
+
 const RADIUS_CAP = 10;
 
 /**
@@ -43,10 +47,63 @@ export const WEAPON_UPGRADES: WeaponUpgrade[] = [
   { name: '拡散UP', apply: (l) => void (l.weapon.spread = Math.min(0.5, l.weapon.spread + 0.06)), available: (l) => l.weapon.kind !== 'straight' && l.weapon.spread < 0.5 },
 ];
 
+/** 3体ごとの強敵ボスだけが落とす、通常より大きくビルドを変える強化。 */
+export const SPECIAL_UPGRADES: SpecialUpgrade[] = [
+  {
+    name: 'ワイドバースト',
+    description: '弾数+4・拡散角UP',
+    apply(l) {
+      if (l.weapon.kind === 'straight') {
+        l.weapon.kind = 'odd';
+        l.weapon.ways = 5;
+      } else {
+        l.weapon.ways += 4;
+      }
+      l.weapon.spread = Math.min(0.5, l.weapon.spread + 0.08);
+    },
+  },
+  {
+    name: 'オーバードライブ',
+    description: '連射速度を大幅UP・弾速UP',
+    apply(l) {
+      l.weapon.interval = Math.max(0.03, l.weapon.interval * 0.68);
+      l.weapon.speed += 180;
+    },
+  },
+  {
+    name: 'ヘビーバレット',
+    description: '弾を大きく・威力+2',
+    apply(l) {
+      l.weapon.radius = Math.min(14, l.weapon.radius + 4);
+      l.weapon.damage += 2;
+    },
+  },
+  {
+    name: 'ライフコア',
+    description: '最大HP+2・HPを2回復',
+    apply(l) {
+      l.maxHp += 2;
+      l.hp = Math.min(l.maxHp, l.hp + 2);
+    },
+    available: (l) => l.maxHp < 15,
+  },
+];
+
 /** ロードアウトを1段階ランダム強化し、その名前を返す。 */
 export function randomWeaponUpgrade(rng: Rng, loadout: PlayerLoadout): string {
   const pool = WEAPON_UPGRADES.filter((u) => !u.available || u.available(loadout));
   const u = pool[Math.floor(rng.next() * pool.length)];
   u.apply(loadout);
   return u.name;
+}
+
+/** 強敵ボス報酬。利用可能な候補から重複なしで2つ引く。 */
+export function drawSpecialUpgrades(rng: Rng, loadout: PlayerLoadout): SpecialUpgrade[] {
+  const pool = SPECIAL_UPGRADES.filter((u) => !u.available || u.available(loadout));
+  const choices: SpecialUpgrade[] = [];
+  while (choices.length < 2 && pool.length > 0) {
+    const index = Math.floor(rng.next() * pool.length);
+    choices.push(pool.splice(index, 1)[0]);
+  }
+  return choices;
 }

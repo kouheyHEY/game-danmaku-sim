@@ -1,11 +1,11 @@
 import { Application } from 'pixi.js';
 import { FIELD } from '../spec/stage0';
 import type { ShipInput } from '../domain/entities';
-import { titleSession, beginSession, stepSession, type Session } from '../run/session';
-import { SessionRenderer } from '../render/sessionRenderer';
+import { titleSession, beginSession, stepSession, chooseSpecialUpgrade, type Session } from '../run/session';
+import { SessionRenderer, specialRewardCardRects } from '../render/sessionRenderer';
 import { mountDebugPanel, debugEnabled, type DebugButton } from '../render/debugPanel';
 import {
-  debugSpawnBoss, debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
+  debugSpawnBoss, debugSpawnStrongBoss, debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
   debugAddMaxHp, debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, WEAPON_UPGRADES,
 } from '../run/debug';
 
@@ -78,6 +78,13 @@ async function main(): Promise<void> {
       wasLocked = false;
       return;
     }
+    if (session.phase === 'reward') {
+      const p = toField(e);
+      const index = specialRewardCardRects().findIndex((r) =>
+        p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
+      if (index >= 0) chooseSpecialUpgrade(session, index);
+      return;
+    }
     pointerActive = true;
     finger = toField(e);
     regrab();
@@ -100,6 +107,7 @@ async function main(): Promise<void> {
   if (debugEnabled()) {
     const buttons: DebugButton[] = [
       { label: 'ボス出現', onClick: () => debugSpawnBoss(session) },
+      { label: '強敵ボス出現', onClick: () => debugSpawnStrongBoss(session) },
       { label: '雑魚出現', onClick: () => debugSpawnMob(session) },
       { label: 'Lv+強化', onClick: () => debugLevelUp(session) },
       { label: '全回復', onClick: () => debugFullHeal(session) },

@@ -4,8 +4,8 @@ import { makeRng, type Rng } from '../domain/rng';
 import { FIELD } from '../spec/stage0';
 import { startingLoadout, type PlayerLoadout } from './loadout';
 import { buildWeapon } from './weapon';
-import { makeMob, mobInterval, makeBoss } from './content';
-import { randomWeaponUpgrade } from './upgrades';
+import { makeMob, mobInterval, makeBoss, makeStrongBoss } from './content';
+import { drawSpecialUpgrades, randomWeaponUpgrade, type SpecialUpgrade } from './upgrades';
 
 export const IFRAME = 2.0; // 被弾後の無敵(点滅) [s]
 export const RESPAWN_TIME = 0.7; // 画面下から復帰しきるまで [s]
@@ -13,7 +13,7 @@ const BOSS_FIRST = 12; // 最初のボスまで [s]
 const BOSS_INTERVAL = 16; // 撃破後、次のボスまで [s]
 const ESCAPE_MARGIN = 40; // 画面下にこれだけ抜けたら退場
 
-export type Phase = 'title' | 'playing' | 'gameover';
+export type Phase = 'title' | 'playing' | 'reward' | 'gameover';
 
 export interface Toast {
   text: string;
@@ -30,6 +30,8 @@ export interface Session {
   nextMobAt: number;
   nextBossAt: number;
   bossId: number | null;
+  bossIsStrong: boolean;
+  specialChoices: SpecialUpgrade[];
   nextEnemyId: number;
   toast: Toast | null;
   rng: Rng;
@@ -61,6 +63,8 @@ export function beginSession(seed = Date.now()): Session {
     nextMobAt: world.time + 0.4,
     nextBossAt: world.time + BOSS_FIRST,
     bossId: null,
+    bossIsStrong: false,
+    specialChoices: [],
     nextEnemyId: 1,
     toast: null,
     rng: makeRng(s),
@@ -125,23 +129,45 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
   if (session.toast && w.time >= session.toast.until) session.toast = null;
 
   if (bossKilled) {
+    const wasStrong = session.bossIsStrong;
     session.bossId = null;
+    session.bossIsStrong = false;
     session.level += 1;
     ship.hp = Math.min(ship.maxHp, ship.hp + 1); // HP+1回復
     session.loadout.hp = ship.hp;
-    const name = randomWeaponUpgrade(session.rng, session.loadout);
-    ship.weapon = buildWeapon(session.loadout.weapon);
-    session.nextBossAt = w.time + BOSS_INTERVAL;
-    session.nextMobAt = w.time + 0.8; // 雑魚湧き再開
-    session.toast = { text: `BOSS撃破！  +1HP ・ ${name}`, until: w.time + 2.4 };
+    if (wasStrong) {
+      // 選択中に残弾で状況が変わらないよう、戦場を空にして時間を止める。
+      w.bullets = [];
+      session.specialChoices = drawSpecialUpgrades(session.rng, session.loadout);
+      session.phase = 'reward';
+      session.nextBossAt = Number.POSITIVE_INFINITY;
+      session.nextMobAt = Number.POSITIVE_INFINITY;
+      session.toast = null;
+    } else {
+      const name = randomWeaponUpgrade(session.rng, session.loadout);
+      ship.weapon = buildWeapon(session.loadout.weapon);
+      session.nextBossAt = w.time + BOSS_INTERVAL;
+      session.nextMobAt = w.time + 0.8; // 雑魚湧き再開
+      session.toast = { text: `BOSS撃破！  +1HP ・ ${name}`, until: w.time + 2.4 };
+    }
+  }
+
+  if (ship.hp <= 0) {
+    session.phase = 'gameover';
+    return;
   }
 
   // 出現：ボス中は雑魚を止める
-  if (session.bossId == null) {
+  if (session.phase === 'playing' && session.bossId == null) {
     if (w.time >= session.nextBossAt) {
       const id = session.nextEnemyId++;
-      w.enemies.push(makeBoss(id, session.level, w.bounds, session.rng));
+      const strong = (session.level + 1) % 3 === 0;
+      w.enemies.push(strong
+        ? makeStrongBoss(id, session.level, w.bounds, session.rng)
+        : makeBoss(id, session.level, w.bounds, session.rng));
       session.bossId = id;
+      session.bossIsStrong = strong;
+      if (strong) session.toast = { text: '強敵ボス', until: w.time + 2 };
     } else if (w.time >= session.nextMobAt) {
       const id = session.nextEnemyId++;
       const x = w.bounds.x + 20 + session.rng.next() * (w.bounds.w - 40);
@@ -150,5 +176,23 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
     }
   }
 
-  if (ship.hp <= 0) session.phase = 'gameover';
+}
+
+/** 強敵ボス撃破後の2択を適用して戦闘へ戻る。 */
+export function chooseSpecialUpgrade(session: Session, index: number): boolean {
+  if (session.phase !== 'reward') return false;
+  const upgrade = session.specialChoices[index];
+  if (!upgrade) return false;
+
+  upgrade.apply(session.loadout);
+  const ship = session.world.ship;
+  ship.maxHp = session.loadout.maxHp;
+  ship.hp = session.loadout.hp;
+  ship.weapon = buildWeapon(session.loadout.weapon);
+  session.specialChoices = [];
+  session.phase = 'playing';
+  session.nextBossAt = session.world.time + BOSS_INTERVAL;
+  session.nextMobAt = session.world.time + 0.8;
+  session.toast = { text: `特別強化 ・ ${upgrade.name}`, until: session.world.time + 2.4 };
+  return true;
 }

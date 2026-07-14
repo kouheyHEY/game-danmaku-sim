@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { WEAPON_UPGRADES, randomWeaponUpgrade } from '../../src/run/upgrades';
+import { WEAPON_UPGRADES, drawSpecialUpgrades, randomWeaponUpgrade } from '../../src/run/upgrades';
 import { startingLoadout } from '../../src/run/loadout';
 import { makeRng } from '../../src/domain/rng';
 
@@ -38,5 +38,15 @@ describe('武器強化プール（弾数+2一強の解消）', () => {
     const l = startingLoadout();
     const coverage = WEAPON_UPGRADES.filter((u) => (!u.available || u.available(l)) && ['弾数+2', '弾を大きく', '強撃'].includes(u.name));
     expect(coverage.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('特別強化は重複なしで2択になり、通常強化より大きく変化する', () => {
+    const l = startingLoadout();
+    const choices = drawSpecialUpgrades(makeRng(7), l);
+    expect(choices).toHaveLength(2);
+    expect(new Set(choices.map((u) => u.name)).size).toBe(2);
+    const before = JSON.stringify(l);
+    choices[0].apply(l);
+    expect(JSON.stringify(l)).not.toBe(before);
   });
 });
