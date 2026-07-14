@@ -21,7 +21,7 @@ export function specialRewardCardRects(): RewardCardRect[] {
 }
 
 export function pauseButtonRect(): RewardCardRect {
-  return { x: FIELD.w / 2 - 28, y: 8, w: 56, h: 38 };
+  return { x: 8, y: 8, w: 44, h: 38 };
 }
 
 const style = (size: number, fill: number, bold = false) => ({
@@ -59,7 +59,7 @@ export class SessionRenderer {
     stage.addChild(this.playerBulletsG, this.bossG, this.enemyBulletsG, this.fxG, this.shipG);
 
     this.hpText = new Text({ text: '', style: { ...style(15, 0xff8fa3), align: 'left' } });
-    this.hpText.position.set(8, 8);
+    this.hpText.position.set(62, 16);
 
     this.scoreLabel = new Text({ text: '避けた弾', style: style(12, 0x9aa3b8) });
     this.scoreLabel.anchor.set(1, 0);
