@@ -15,8 +15,8 @@ export interface RewardCardRect { x: number; y: number; w: number; h: number }
 /** 描画とタップ判定で共有する、スマホ向けの大きな2択カード。 */
 export function specialRewardCardRects(): RewardCardRect[] {
   return [
-    { x: 28, y: 218, w: 204, h: 210 },
-    { x: 248, y: 218, w: 204, h: 210 },
+    { x: 40, y: 210, w: FIELD.w - 80, h: 160 },
+    { x: 40, y: 390, w: FIELD.w - 80, h: 160 },
   ];
 }
 
