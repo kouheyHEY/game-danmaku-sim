@@ -1,9 +1,7 @@
-import { fan, rotating, randomSpread, aimed, type Pattern } from '../domain/pattern';
+import { fan, rotating, aimed, type Pattern } from '../domain/pattern';
 import type { Enemy } from '../domain/entities';
 import type { Rect } from '../domain/math';
 import type { Rng } from '../domain/rng';
-
-const DOWN = Math.PI / 2;
 
 /** 雑魚の弾パターン集：すべて自機を狙って撃つ。バリエーション豊富。 */
 const MOB_PATTERNS: Array<(level: number) => Pattern> = [
@@ -50,7 +48,7 @@ export function mobInterval(level: number): number {
   return Math.max(0.5, 1.6 - level * 0.14);
 }
 
-/** ボスの弾幕集（重み付き抽選）。回転・逆回転・全方位リング・ばらまき。 */
+/** 通常ボスの弾幕集（重み付き抽選）。回転・逆回転・全方位リングのみ。 */
 const BOSS_PATTERNS: Array<{ weight: number; make: (level: number) => Pattern }> = [
   { weight: 3, make: (l) => rotating({ ways: 8 + Math.min(6, l), spread: 0.3, rotStep: 0.25, speed: 125 + l * 6, radius: 6, interval: 0.14 }) },
   { weight: 3, make: (l) => rotating({ ways: 4, spread: 0.9, rotStep: -0.36, speed: 120 + l * 6, radius: 6, interval: 0.1 }) }, // 逆回転の腕
@@ -61,8 +59,6 @@ const BOSS_PATTERNS: Array<{ weight: number; make: (level: number) => Pattern }>
       return fan({ ways, spread: (Math.PI * 2) / ways, speed: 105 + l * 5, radius: 6, interval: 0.5 }); // 全方位リング
     },
   },
-  // 下向きばらまき：選ばれる確率を下げ（weight 2＝約18%）、密度も少し下げる（弾数減・間隔増）。
-  { weight: 2, make: (l) => randomSpread({ ways: 6 + Math.floor(l / 2), spread: 0.3, jitter: 0.6, speed: 130 + l * 5, radius: 6, interval: 0.18, baseAngle: DOWN }) },
 ];
 
 function pickBossPattern(level: number, rng: Rng): Pattern {

@@ -5,6 +5,9 @@ import {
   debugPriestMode, debugReversaMode, debugSpawnBossKind, debugTriggerBossEvent,
 } from '../../src/run/debug';
 import { applyBossHit, bossKindForLevel } from '../../src/run/bosses';
+import { makeBoss } from '../../src/run/content';
+import { makeRng } from '../../src/domain/rng';
+import { FIELD } from '../../src/spec/stage0';
 
 const STILL: ShipInput = { moveX: 0, moveY: 0 };
 const DT = 1 / 120;
@@ -15,29 +18,42 @@ function stepFor(s: ReturnType<typeof beginSession>, seconds: number): void {
 }
 
 describe('特徴ボス', () => {
-  it('最初の4種を経て5体目にプリーストが必ず来る', () => {
-    expect(Array.from({ length: 10 }, (_, level) => bossKindForLevel(level))).toEqual([
-      'reversa', 'sniper', 'shogun', 'tank', 'priest',
-      'reversa', 'sniper', 'shogun', 'tank', 'priest',
+  it('通常ボス2体ごとに特徴ボスが出て、15体目にプリーストが来る', () => {
+    expect(Array.from({ length: 15 }, (_, level) => bossKindForLevel(level))).toEqual([
+      'normal', 'normal', 'reversa',
+      'normal', 'normal', 'sniper',
+      'normal', 'normal', 'shogun',
+      'normal', 'normal', 'tank',
+      'normal', 'normal', 'priest',
     ]);
   });
 
-  it('5体を順番に撃破し、通常報酬と3体目の特別報酬を経ても進行が続く', () => {
+  it('15体を順番に撃破し、3体ごとの特別報酬を経ても進行が続く', () => {
     const s = beginSession(11);
     s.world.ship.invulnUntil = 1e9;
     s.world.ship.autoFire = false;
-    const expected = ['reversa', 'sniper', 'shogun', 'tank', 'priest'] as const;
-    for (const kind of expected) {
+    const expected = Array.from({ length: 15 }, (_, level) => bossKindForLevel(level));
+    for (const [index, kind] of expected.entries()) {
       s.nextBossAt = s.world.time;
       stepSession(s, STILL, DT);
       expect(s.bossKind).toBe(kind);
       for (const e of s.world.enemies) e.hp = 0;
       stepSession(s, STILL, DT);
+      expect(s.phase === 'reward').toBe((index + 1) % 3 === 0);
       if (s.phase === 'reward') expect(chooseSpecialUpgrade(s, 0)).toBe(true);
     }
-    expect(s.level).toBe(5);
+    expect(s.level).toBe(15);
     expect(s.boss).toBeNull();
     expect(s.phase).toBe('playing');
+  });
+
+  it('通常ボスの弾幕は発射時の乱数状態に依存しない（ランダム弾なし）', () => {
+    for (let seed = 0; seed < 30; seed++) {
+      const boss = makeBoss(1, 0, FIELD, makeRng(seed));
+      const a = boss.pattern!.emit(0, DT, boss.pos, makeRng(101));
+      const b = boss.pattern!.emit(0, DT, boss.pos, makeRng(202));
+      expect(a).toEqual(b);
+    }
   });
 
   it('各ボスを20秒動かしても残弾が無制限に増えない', () => {

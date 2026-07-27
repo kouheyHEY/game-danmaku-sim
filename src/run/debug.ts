@@ -24,7 +24,7 @@ function replaceBoss(s: Session, kind: BossKind, strong: boolean): void {
 }
 
 export function debugSpawnBoss(s: Session): void {
-  replaceBoss(s, 'reversa', false);
+  replaceBoss(s, 'normal', false);
 }
 
 export function debugSpawnStrongBoss(s: Session): void {

@@ -100,7 +100,7 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     s.nextBossAt = s.world.time + 0.05;
     stepFor(s, 0.2);
     expect(s.bossIsStrong).toBe(true);
-    expect(s.bossKind).toBe('shogun');
+    expect(s.bossKind).toBe('reversa');
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
     expect(boss.hitRadius).toBeGreaterThanOrEqual(28);
     expect(boss.maxHp).toBeGreaterThan(150);

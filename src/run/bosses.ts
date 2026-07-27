@@ -2,6 +2,8 @@ import type { Bullet, Enemy, ShipInput } from '../domain/entities';
 import { clamp, type Rect, type Vec2 } from '../domain/math';
 import { fan, type Pattern } from '../domain/pattern';
 import type { World } from '../domain/world';
+import type { Rng } from '../domain/rng';
+import { makeBoss } from './content';
 import type { PlayerLoadout } from './loadout';
 import { buildWeapon, buildWeaponAtAngle, type WeaponSpec } from './weapon';
 
@@ -9,7 +11,8 @@ const UP = -Math.PI / 2;
 const DOWN = Math.PI / 2;
 
 export const BOSS_ORDER = ['reversa', 'sniper', 'shogun', 'tank', 'priest'] as const;
-export type BossKind = typeof BOSS_ORDER[number];
+export type FeatureBossKind = typeof BOSS_ORDER[number];
+export type BossKind = 'normal' | FeatureBossKind;
 export type ReversaMode = 'swap' | 'regen' | 'invert';
 
 interface BossBase {
@@ -18,6 +21,10 @@ interface BossBase {
   enemyIds: number[];
   strong: boolean;
   notice: string | null;
+}
+
+export interface NormalBoss extends BossBase {
+  kind: 'normal';
 }
 
 export interface ReversaBoss extends BossBase {
@@ -64,7 +71,7 @@ export interface PriestBoss extends BossBase {
   copiedPattern: Pattern | null;
 }
 
-export type BossEncounter = ReversaBoss | SniperBoss | ShogunBoss | TankBoss | PriestBoss;
+export type BossEncounter = NormalBoss | ReversaBoss | SniperBoss | ShogunBoss | TankBoss | PriestBoss;
 
 export interface BossSpawn {
   encounter: BossEncounter;
@@ -72,6 +79,7 @@ export interface BossSpawn {
 }
 
 export const BOSS_NAMES: Record<BossKind, string> = {
+  normal: 'ボス',
   reversa: 'リバーサ',
   sniper: 'スナイパー',
   shogun: 'ショウグン',
@@ -106,13 +114,17 @@ function enemy(
 }
 
 export function bossKindForLevel(level: number): BossKind {
-  return BOSS_ORDER[level % BOSS_ORDER.length];
+  const bossNumber = level + 1;
+  if (bossNumber % 3 !== 0) return 'normal';
+  const featureIndex = bossNumber / 3 - 1;
+  return BOSS_ORDER[featureIndex % BOSS_ORDER.length];
 }
 
 export function makeBossEncounter(
   kind: BossKind,
   level: number,
   bounds: Rect,
+  rng: Rng,
   strong: boolean,
   now: number,
   allocateId: () => number,
@@ -122,6 +134,14 @@ export function makeBossEncounter(
   const top = bounds.y + bounds.h * 0.16;
   const primaryId = allocateId();
   const base: BossBase = { kind, primaryId, enemyIds: [primaryId], strong, notice: null };
+
+  if (kind === 'normal') {
+    const normal = makeBoss(primaryId, level, bounds, rng);
+    normal.role = 'boss';
+    normal.visible = true;
+    normal.targetable = true;
+    return { enemies: [normal], encounter: { ...base, kind } };
+  }
 
   if (kind === 'reversa') {
     const e = enemy(primaryId, { x: cx, y: top }, hp, strong ? 28 : 23);
@@ -483,11 +503,12 @@ function stepPriest(runtime: PriestBoss, world: World, loadout: PlayerLoadout, d
 }
 
 export function prepareBossStep(runtime: BossEncounter, world: World, loadout: PlayerLoadout, input: ShipInput, dt: number, level: number): ShipInput {
+  if (runtime.kind === 'normal') return input;
   if (runtime.kind === 'reversa') return stepReversa(runtime, world, loadout, input);
   if (runtime.kind === 'sniper') stepSniper(runtime, world, level);
   else if (runtime.kind === 'shogun') stepShogun(runtime, world, level);
   else if (runtime.kind === 'tank') stepTank(runtime, world, level);
-  else stepPriest(runtime, world, loadout, dt, level);
+  else if (runtime.kind === 'priest') stepPriest(runtime, world, loadout, dt, level);
   return input;
 }
 
@@ -531,6 +552,7 @@ export function takeBossNotice(runtime: BossEncounter): string | null {
 }
 
 export function bossStatus(runtime: BossEncounter, world: World): string {
+  if (runtime.kind === 'normal') return '通常弾幕';
   if (runtime.kind === 'reversa') {
     const labels: Record<ReversaMode, string> = { swap: '上下反転', regen: '攻撃反転', invert: '操作反転' };
     return runtime.mode ? labels[runtime.mode] : '待機';
@@ -545,6 +567,7 @@ export function bossStatus(runtime: BossEncounter, world: World): string {
 }
 
 export function forceBossEvent(runtime: BossEncounter, world: World): void {
+  if (runtime.kind === 'normal') return;
   if (runtime.kind === 'reversa') {
     if (runtime.mode) runtime.activeUntil = world.time;
     else runtime.nextEventAt = world.time;
@@ -557,7 +580,7 @@ export function forceBossEvent(runtime: BossEncounter, world: World): void {
   } else if (runtime.kind === 'tank') {
     const boss = getEnemy(world, runtime.primaryId);
     if (boss) boss.hp = Math.max(1, boss.hp - boss.maxHp * 0.21);
-  } else {
+  } else if (runtime.kind === 'priest') {
     if (runtime.mode === 'duel') return;
     runtime.mode = runtime.mode === 'chase' ? 'orb' : 'chase';
     runtime.switchAt = world.time + 6;

@@ -210,7 +210,7 @@ export function spawnBoss(session: Session, kind: BossKind, strong = false): boo
   const w = session.world;
   w.enemies = [];
   w.bullets = [];
-  const spawn = makeBossEncounter(kind, session.level, w.bounds, strong, w.time, () => session.nextEnemyId++);
+  const spawn = makeBossEncounter(kind, session.level, w.bounds, session.rng, strong, w.time, () => session.nextEnemyId++);
   w.enemies.push(...spawn.enemies);
   session.boss = spawn.encounter;
   session.bossId = spawn.encounter.primaryId;
