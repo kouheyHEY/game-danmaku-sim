@@ -13,7 +13,7 @@ const DOWN = Math.PI / 2;
 export const BOSS_ORDER = ['reversa', 'sniper', 'shogun', 'tank', 'priest'] as const;
 export type FeatureBossKind = typeof BOSS_ORDER[number];
 export type BossKind = 'normal' | FeatureBossKind;
-export type ReversaMode = 'swap' | 'regen' | 'invert';
+export type ReversaMode = 'swap' | 'invert';
 
 interface BossBase {
   kind: BossKind;
@@ -30,13 +30,10 @@ export interface NormalBoss extends BossBase {
 export interface ReversaBoss extends BossBase {
   kind: 'reversa';
   mode: ReversaMode | null;
-  lastMode: ReversaMode | null;
   nextEventAt: number;
-  activeUntil: number;
   transitionUntil: number;
   pendingMode: ReversaMode | null;
   controlEpoch: number;
-  hitThisStep: boolean;
   normalPattern: Pattern;
   reversePattern: Pattern;
 }
@@ -55,6 +52,7 @@ export interface ShogunBoss extends BossBase {
   attackNextAt: number;
   waveIndex: number;
   waveNextAt: number;
+  wasPlayerUpper: boolean;
 }
 
 export interface TankBoss extends BossBase {
@@ -91,8 +89,8 @@ export const BOSS_NAMES: Record<BossKind, string> = {
 };
 
 function bossHp(level: number, strong: boolean): number {
-  const base = 60 + level * 45;
-  return Math.round(base * (strong ? 1.75 : 1));
+  const base = 100 + level * 70;
+  return Math.round(base * (strong ? 2 : 1));
 }
 
 function enemy(
@@ -151,17 +149,17 @@ export function makeBossEncounter(
   }
 
   if (kind === 'reversa') {
-    const e = enemy(primaryId, { x: cx, y: top }, hp, strong ? 28 : 23);
+    const e = enemy(primaryId, { x: cx, y: top }, hp, strong ? 18 : 16);
     e.vel.x = 68 + level * 5;
-    const normalPattern = fan({ ways: 9, spread: 0.22, speed: 125 + level * 5, radius: 6, interval: 0.28, baseAngle: DOWN });
-    const reversePattern = fan({ ways: 9, spread: 0.22, speed: 125 + level * 5, radius: 6, interval: 0.28, baseAngle: UP });
+    const normalPattern = fan({ ways: 7, spread: 0.2, speed: 105 + level * 4, radius: 5, interval: 0.38, baseAngle: DOWN });
+    const reversePattern = fan({ ways: 7, spread: 0.2, speed: 105 + level * 4, radius: 5, interval: 0.38, baseAngle: UP });
     e.pattern = normalPattern;
     return {
       enemies: [e],
       encounter: {
-        ...base, kind, mode: null, lastMode: null, nextEventAt: now + 2.5, activeUntil: 0,
+        ...base, kind, mode: null, nextEventAt: now + 2.5,
         transitionUntil: 0, pendingMode: null, controlEpoch: 0,
-        hitThisStep: false, normalPattern, reversePattern,
+        normalPattern, reversePattern,
       },
     };
   }
@@ -172,7 +170,10 @@ export function makeBossEncounter(
     const shooters: SniperBoss['shooters'] = [];
     for (let i = 0; i < 3; i++) {
       const id = i === 0 ? primaryId : allocateId();
-      const e = enemy(id, { x: bounds.x + bounds.w * (0.25 + i * 0.25), y: top }, eachHp, 17, 'sniper');
+      const laneCenter = bounds.x + bounds.w * ((i + 0.5) / 3);
+      const x = laneCenter + (rng.next() - 0.5) * bounds.w * 0.18;
+      const y = top + (rng.next() - 0.5) * bounds.h * 0.12;
+      const e = enemy(id, { x, y }, eachHp, 12, 'sniper');
       e.visible = false;
       e.targetable = false;
       enemies.push(e);
@@ -183,30 +184,30 @@ export function makeBossEncounter(
   }
 
   if (kind === 'shogun') {
-    const boss = enemy(primaryId, { x: cx, y: top }, hp, strong ? 29 : 25);
+    const boss = enemy(primaryId, { x: cx, y: top }, hp, strong ? 18 : 16);
     boss.targetable = false;
     boss.vel.x = 42;
     const wallId = allocateId();
-    const wallHp = Math.round(hp * 0.48);
-    const wall = enemy(wallId, { x: cx, y: bounds.y + bounds.h * 0.28 }, wallHp, 34, 'guard');
+    const wallHp = Math.round(hp * 0.65);
+    const wall = enemy(wallId, { x: cx, y: bounds.y + bounds.h * 0.28 }, wallHp, 24, 'guard');
     base.enemyIds.push(wallId);
     return {
       enemies: [boss, wall],
       encounter: {
         ...base, kind, wallId, sideNextAt: now + 0.8, sideFromLeft: true, wallNextAt: now + 1.4,
-        attackNextAt: now + 1.2, waveIndex: 0, waveNextAt: 0,
+        attackNextAt: now + 1.2, waveIndex: 0, waveNextAt: 0, wasPlayerUpper: false,
       },
     };
   }
 
   if (kind === 'tank') {
-    const tankHp = Math.round(hp * 2.35);
-    const e = enemy(primaryId, { x: cx, y: top }, tankHp, strong ? 34 : 30);
+    const tankHp = Math.round(hp * 3);
+    const e = enemy(primaryId, { x: cx, y: top }, tankHp, strong ? 20 : 18);
     e.vel.x = 30;
     return { enemies: [e], encounter: { ...base, kind, stage: 0, nextShotAt: now + 1, rebound: false, recoverUntil: 0 } };
   }
 
-  const priest = enemy(primaryId, { x: cx, y: top }, Math.round(hp * 1.25), strong ? 30 : 25);
+  const priest = enemy(primaryId, { x: cx, y: top }, Math.round(hp * 1.6), strong ? 17 : 14);
   return {
     enemies: [priest],
     encounter: {
@@ -245,13 +246,11 @@ function pushAimed(world: World, source: Vec2, speed: number, radius: number, wa
 }
 
 function activateReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoadout, forced?: ReversaMode): void {
-  const modes: ReversaMode[] = ['swap', 'regen', 'invert'].filter((m) => m !== runtime.lastMode) as ReversaMode[];
+  const modes: ReversaMode[] = ['swap', 'invert'];
   const mode = forced ?? modes[Math.floor(world.rng.next() * modes.length)];
   runtime.mode = mode;
-  runtime.lastMode = mode;
   runtime.pendingMode = null;
   runtime.transitionUntil = 0;
-  runtime.activeUntil = world.time + 6;
   world.firingEnabled = true;
   const boss = getEnemy(world, runtime.primaryId);
   if (mode === 'swap') {
@@ -262,8 +261,6 @@ function activateReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoad
       boss.pattern = runtime.reversePattern;
     }
     runtime.notice = '上下反転';
-  } else if (mode === 'regen') {
-    runtime.notice = '攻撃で回復・未攻撃でダメージ';
   } else {
     runtime.notice = '操作反転';
   }
@@ -271,7 +268,7 @@ function activateReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoad
 }
 
 function beginReversaTransition(runtime: ReversaBoss, world: World, loadout: PlayerLoadout, forced?: ReversaMode): void {
-  const modes: ReversaMode[] = ['swap', 'regen', 'invert'].filter((m) => m !== runtime.lastMode) as ReversaMode[];
+  const modes: ReversaMode[] = ['swap', 'invert'];
   runtime.mode = null;
   runtime.pendingMode = forced ?? modes[Math.floor(world.rng.next() * modes.length)];
   runtime.transitionUntil = world.time + 2;
@@ -294,7 +291,6 @@ function reverseInput(input: ShipInput): ShipInput {
 }
 
 function stepReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoadout, input: ShipInput): ShipInput {
-  runtime.hitThisStep = false;
   if (runtime.transitionUntil > 0) {
     world.firingEnabled = false;
     if (world.time >= runtime.transitionUntil && runtime.pendingMode) {
@@ -302,10 +298,6 @@ function stepReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoadout,
       return { moveX: 0, moveY: 0 };
     }
     return input;
-  }
-  if (runtime.mode && world.time >= runtime.activeUntil) {
-    beginReversaTransition(runtime, world, loadout);
-    return { moveX: 0, moveY: 0 };
   }
   if (!runtime.mode && world.time >= runtime.nextEventAt) {
     beginReversaTransition(runtime, world, loadout);
@@ -339,10 +331,16 @@ function stepShogun(runtime: ShogunBoss, world: World, level: number): void {
   while (world.time >= runtime.sideNextAt) {
     const y = world.bounds.y + world.bounds.h * (0.16 + world.rng.next() * 0.64);
     const fromLeft = runtime.sideFromLeft;
-    const source = { x: fromLeft ? world.bounds.x + 3 : world.bounds.x + world.bounds.w - 3, y };
-    pushBullet(world, source, fromLeft ? 0 : Math.PI, 105 + level * 3, 6, 'side');
+    const x = fromLeft ? world.bounds.x + 3 : world.bounds.x + world.bounds.w - 3;
+    for (const offset of [-24, 24]) {
+      const source = {
+        x,
+        y: clamp(y + offset, world.bounds.y + 8, world.bounds.y + world.bounds.h - 8),
+      };
+      pushBullet(world, source, fromLeft ? 0 : Math.PI, 112 + level * 3, 5, 'side');
+    }
     runtime.sideFromLeft = !fromLeft;
-    runtime.sideNextAt += 1.05;
+    runtime.sideNextAt += 0.58;
   }
 
   if (wall) {
@@ -354,27 +352,36 @@ function stepShogun(runtime: ShogunBoss, world: World, level: number): void {
     return;
   }
 
-  if (runtime.waveIndex > 0 && runtime.waveIndex <= 19 && world.time >= runtime.waveNextAt) {
-    while (runtime.waveIndex <= 19 && world.time >= runtime.waveNextAt) {
+  const playerUpper = world.ship.pos.y <= world.bounds.y + world.bounds.h / 2;
+  if (playerUpper && !runtime.wasPlayerUpper && runtime.waveIndex === 0) {
+    runtime.waveIndex = 1;
+    runtime.waveNextAt = world.time;
+    runtime.attackNextAt = world.time + 1.1;
+    runtime.notice = '刀波';
+  }
+  runtime.wasPlayerUpper = playerUpper;
+
+  if (runtime.waveIndex > 0 && runtime.waveIndex <= 21 && world.time >= runtime.waveNextAt) {
+    while (runtime.waveIndex <= 21 && world.time >= runtime.waveNextAt) {
       const i = runtime.waveIndex - 1;
       const base = Math.atan2(world.ship.pos.y - boss.pos.y, world.ship.pos.x - boss.pos.x);
-      const arc = -0.82 + (i / 18) * 1.64;
+      const arc = -0.86 + (i / 20) * 1.72;
       const source = { x: boss.pos.x + Math.cos(base + arc) * 18, y: boss.pos.y + Math.sin(base + arc) * 18 };
-      pushBullet(world, source, base + arc, 195 + level * 4, 7, 'wave');
+      pushBullet(world, source, base + arc, 205 + level * 4, 6, 'wave');
       runtime.waveIndex += 1;
-      runtime.waveNextAt += 0.035;
+      runtime.waveNextAt += 0.01;
     }
-    if (runtime.waveIndex > 19) runtime.waveIndex = 0;
+    if (runtime.waveIndex > 21) runtime.waveIndex = 0;
   }
 
   if (runtime.waveIndex === 0 && world.time >= runtime.attackNextAt) {
-    if (world.ship.pos.y > world.bounds.y + world.bounds.h / 2) {
+    if (!playerUpper) {
       pushAimed(world, boss.pos, 175 + level * 5, 6, 3, 0.18, 'normal');
-      runtime.attackNextAt = world.time + 1.2;
+      runtime.attackNextAt = world.time + 1.05;
     } else {
       runtime.waveIndex = 1;
       runtime.waveNextAt = world.time;
-      runtime.attackNextAt = world.time + 2.7;
+      runtime.attackNextAt = world.time + 1.1;
       runtime.notice = '刀波';
     }
   }
@@ -398,8 +405,8 @@ function stepTank(runtime: TankBoss, world: World, level: number): void {
     }
   }
 
-  const normalSpeed = (105 + level * 5) * (1 + runtime.stage * 0.08);
-  const normalRadius = 5 + runtime.stage * 0.65;
+  const normalSpeed = (135 + level * 6) * (1 + runtime.stage * 0.12);
+  const normalRadius = 5.5 + runtime.stage * 0.8;
   let speed = normalSpeed;
   let radius = normalRadius;
   let bouncing = false;
@@ -413,7 +420,7 @@ function stepTank(runtime: TankBoss, world: World, level: number): void {
     radius = 3 + (normalRadius - 3) * p;
   }
   const densitySteps = Math.floor(runtime.stage / 2);
-  const interval = Math.max(0.26, 0.62 - densitySteps * 0.12);
+  const interval = Math.max(0.2, 0.5 - densitySteps * 0.11);
   while (world.time >= runtime.nextShotAt) {
     pushAimed(
       world,
@@ -430,13 +437,16 @@ function stepTank(runtime: TankBoss, world: World, level: number): void {
 }
 
 function cappedCopy(spec: WeaponSpec): WeaponSpec {
+  let ways = Math.min(5, Math.max(1, spec.ways));
+  if (spec.kind === 'even' && ways % 2 !== 0) ways = Math.max(2, ways - 1);
+  if (spec.kind === 'odd' && ways % 2 === 0) ways = Math.max(1, ways - 1);
   return {
     kind: spec.kind,
-    ways: Math.min(7, Math.max(1, spec.ways)),
-    spread: Math.min(0.2, Math.max(0.06, spec.spread)),
-    speed: Math.min(340, spec.speed),
-    radius: Math.min(7, spec.radius),
-    interval: Math.max(0.085, spec.interval),
+    ways,
+    spread: Math.min(0.16, Math.max(0.05, spec.spread)),
+    speed: Math.min(280, spec.speed),
+    radius: Math.min(4, spec.radius),
+    interval: Math.max(0.12, spec.interval),
     damage: 1,
   };
 }
@@ -444,6 +454,8 @@ function cappedCopy(spec: WeaponSpec): WeaponSpec {
 function activatePriestDuel(runtime: PriestBoss, world: World, loadout: PlayerLoadout): void {
   runtime.mode = 'duel';
   runtime.copiedPattern = buildWeaponAtAngle(cappedCopy(loadout.weapon), DOWN);
+  const boss = getEnemy(world, runtime.primaryId);
+  if (boss) boss.hitRadius = Math.min(boss.hitRadius, 10);
   clearEnemyBullets(world);
   runtime.notice = '弾幕模倣・決闘';
 }
@@ -536,20 +548,12 @@ export function prepareBossStep(runtime: BossEncounter, world: World, loadout: P
 export function applyBossHit(runtime: BossEncounter, world: World, enemyId: number, damage: number): void {
   const target = getEnemy(world, enemyId);
   if (!target) return;
-  if (runtime.kind === 'reversa' && runtime.mode === 'regen' && enemyId === runtime.primaryId) {
-    target.hp = Math.min(target.maxHp, target.hp + damage);
-    runtime.hitThisStep = true;
-    return;
-  }
   const multiplier = runtime.kind === 'priest' && runtime.mode === 'duel' && enemyId === runtime.primaryId ? 0.5 : 1;
   target.hp -= damage * multiplier;
 }
 
 export function finishBossStep(runtime: BossEncounter, world: World, loadout: PlayerLoadout, dt: number): void {
-  if (runtime.kind === 'reversa' && runtime.mode === 'regen' && !runtime.hitThisStep) {
-    const boss = getEnemy(world, runtime.primaryId);
-    if (boss) boss.hp -= 11 * dt;
-  }
+  void dt;
   if (runtime.kind === 'reversa' && runtime.mode !== 'swap') world.ship.weapon = buildWeapon(loadout.weapon);
 }
 
@@ -574,7 +578,7 @@ export function bossStatus(runtime: BossEncounter, world: World): string {
   if (runtime.kind === 'normal') return '通常弾幕';
   if (runtime.kind === 'reversa') {
     if (runtime.transitionUntil > 0) return '転換準備・弾幕停止';
-    const labels: Record<ReversaMode, string> = { swap: '上下反転', regen: '攻撃反転', invert: '操作反転' };
+    const labels: Record<ReversaMode, string> = { swap: '上下反転', invert: '操作反転' };
     return runtime.mode ? labels[runtime.mode] : '待機';
   }
   if (runtime.kind === 'sniper') {
@@ -589,8 +593,7 @@ export function bossStatus(runtime: BossEncounter, world: World): string {
 export function forceBossEvent(runtime: BossEncounter, world: World): void {
   if (runtime.kind === 'normal') return;
   if (runtime.kind === 'reversa') {
-    if (runtime.mode) runtime.activeUntil = world.time;
-    else runtime.nextEventAt = world.time;
+    if (!runtime.mode && runtime.transitionUntil <= 0) runtime.nextEventAt = world.time;
   } else if (runtime.kind === 'sniper') {
     for (const shooter of runtime.shooters) shooter.nextShotAt = world.time;
   } else if (runtime.kind === 'shogun') {

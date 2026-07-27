@@ -130,8 +130,8 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     expect(s.bossIsStrong).toBe(true);
     expect(s.bossKind).toBe('reversa');
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
-    expect(boss.hitRadius).toBeGreaterThanOrEqual(28);
-    expect(boss.maxHp).toBeGreaterThan(150);
+    expect(boss.hitRadius).toBeLessThanOrEqual(18);
+    expect(boss.maxHp).toBeGreaterThan(400);
   });
 
   it('強敵ボス撃破で2択が出て、選択後に強化を反映して進行再開する', () => {

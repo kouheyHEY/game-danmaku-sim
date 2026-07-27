@@ -24,8 +24,8 @@ describe('デバッグアクション', () => {
     debugSpawnStrongBoss(s);
     expect(s.bossIsStrong).toBe(true);
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
-    expect(boss.hitRadius).toBe(28);
-    expect(boss.maxHp).toBeGreaterThan(100);
+    expect(boss.hitRadius).toBe(18);
+    expect(boss.maxHp).toBeGreaterThanOrEqual(200);
   });
 
   it('雑魚出現：HP1の敵が追加される', () => {

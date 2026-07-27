@@ -73,12 +73,12 @@ function pickBossPattern(level: number, rng: Rng): Pattern {
 
 /** たまに出る動く標的（ボス）。横に往復しつつ弾幕を撒く。 */
 export function makeBoss(id: number, level: number, bounds: Rect, rng: Rng): Enemy {
-  const hp = 60 + level * 45;
+  const hp = 90 + level * 65;
   return {
     id,
     pos: { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h * 0.16 },
     vel: { x: 70 + level * 8, y: 0 },
-    hitRadius: 22,
+    hitRadius: 16,
     hp,
     maxHp: hp,
     pattern: pickBossPattern(level, rng),
@@ -95,13 +95,13 @@ export function makeStrongBoss(id: number, level: number, bounds: Rect, rng: Rng
     },
     (l) => aimed({ ways: 5, spread: 0.14, speed: 170 + l * 6, radius: 7, interval: 0.9, burst: 3, burstGap: 0.1 }),
   ];
-  const baseHp = 60 + level * 45;
-  const hp = Math.round(baseHp * 2.1);
+  const baseHp = 90 + level * 65;
+  const hp = Math.round(baseHp * 2.4);
   return {
     id,
     pos: { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h * 0.16 },
     vel: { x: 90 + level * 8, y: 0 },
-    hitRadius: 28,
+    hitRadius: 20,
     hp,
     maxHp: hp,
     pattern: patterns[Math.floor(rng.next() * patterns.length)](level),
