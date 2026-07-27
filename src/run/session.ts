@@ -208,8 +208,10 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
 export function spawnBoss(session: Session, kind: BossKind, strong = false): boolean {
   if (session.boss) return false;
   const w = session.world;
-  w.enemies = [];
-  w.bullets = [];
+  if (kind !== 'normal') {
+    w.enemies = [];
+    w.bullets = [];
+  }
   const spawn = makeBossEncounter(kind, session.level, w.bounds, session.rng, strong, w.time, () => session.nextEnemyId++);
   w.enemies.push(...spawn.enemies);
   session.boss = spawn.encounter;

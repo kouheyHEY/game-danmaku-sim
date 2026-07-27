@@ -12,6 +12,7 @@ import {
   debugAddMaxHp, debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, WEAPON_UPGRADES,
 } from '../run/debug';
 import { BOSS_NAMES, BOSS_ORDER } from '../run/bosses';
+import { nextDragTarget } from '../input/drag';
 
 const STEP = 1 / 120; // 固定タイムステップ（決定論・当たり判定の安定）
 const MAX_FRAME = 0.25; // スパイク時の暴走防止
@@ -125,8 +126,12 @@ async function main(): Promise<void> {
     canvas.setPointerCapture?.(e.pointerId);
   });
   canvas.addEventListener('pointermove', (e) => {
-    finger = toField(e);
-    if (dragging) target = { x: finger.x + grab.x, y: finger.y + grab.y };
+    const nextFinger = toField(e);
+    if (dragging) {
+      const inverted = session.boss?.kind === 'reversa' && session.boss.mode === 'invert';
+      target = nextDragTarget(target, grab, finger, nextFinger, inverted);
+    }
+    finger = nextFinger;
   });
   canvas.addEventListener('pointerup', stopDragging);
   canvas.addEventListener('pointercancel', stopDragging);

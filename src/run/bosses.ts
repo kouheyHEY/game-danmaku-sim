@@ -220,10 +220,6 @@ function clearEnemyBullets(world: World): void {
   world.bullets = world.bullets.filter((b) => b.owner !== 'enemy');
 }
 
-function clearAllBullets(world: World): void {
-  world.bullets = [];
-}
-
 function pushBullet(world: World, source: Vec2, angle: number, speed: number, radius: number, style: Bullet['style'] = 'normal', extra: Partial<Bullet> = {}): void {
   world.bullets.push({
     id: world.nextId++,
@@ -261,13 +257,13 @@ function activateReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoad
       boss.pos.y = world.bounds.y + world.bounds.h * 0.82;
       boss.pattern = runtime.reversePattern;
     }
-    runtime.controlEpoch += 1;
     runtime.notice = '上下反転';
   } else if (mode === 'regen') {
     runtime.notice = '攻撃で回復・未攻撃でダメージ';
   } else {
     runtime.notice = '操作反転';
   }
+  runtime.controlEpoch += 1;
 }
 
 function beginReversaTransition(runtime: ReversaBoss, world: World, loadout: PlayerLoadout, forced?: ReversaMode): void {
@@ -276,7 +272,6 @@ function beginReversaTransition(runtime: ReversaBoss, world: World, loadout: Pla
   runtime.pendingMode = forced ?? modes[Math.floor(world.rng.next() * modes.length)];
   runtime.transitionUntil = world.time + 2;
   runtime.nextEventAt = Number.POSITIVE_INFINITY;
-  clearAllBullets(world);
   world.firingEnabled = false;
   world.ship.pos = { x: world.bounds.x + world.bounds.w / 2, y: world.bounds.y + world.bounds.h * 0.8 };
   world.ship.weapon = buildWeapon(loadout.weapon);
@@ -289,10 +284,8 @@ function beginReversaTransition(runtime: ReversaBoss, world: World, loadout: Pla
   runtime.notice = '転換準備・弾幕停止';
 }
 
-function reverseInput(input: ShipInput, ship: Vec2): ShipInput {
-  if (input.target) {
-    return { ...input, target: { x: ship.x * 2 - input.target.x, y: ship.y * 2 - input.target.y } };
-  }
+function reverseInput(input: ShipInput): ShipInput {
+  if (input.target) return input; // ドラッグ反転は指の差分を扱える入力層で行う
   return { ...input, moveX: -input.moveX, moveY: -input.moveY };
 }
 
@@ -314,7 +307,7 @@ function stepReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoadout,
     beginReversaTransition(runtime, world, loadout);
     return { moveX: 0, moveY: 0 };
   }
-  if (runtime.mode === 'invert') return reverseInput(input, world.ship.pos);
+  if (runtime.mode === 'invert') return reverseInput(input);
   return input;
 }
 

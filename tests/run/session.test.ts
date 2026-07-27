@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  titleSession, beginSession, stepSession, chooseSpecialUpgrade, pauseSession, resumeSession,
+  titleSession, beginSession, stepSession, chooseSpecialUpgrade, pauseSession, resumeSession, spawnBoss,
 } from '../../src/run/session';
 import { randomWeaponUpgrade } from '../../src/run/upgrades';
 import { startingLoadout } from '../../src/run/loadout';
@@ -70,6 +70,18 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     expect(s.bossId).not.toBeNull();
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
     expect(boss.pattern).not.toBeNull(); // ボスも撃つ
+  });
+
+  it('通常ボス出現時は、戦闘中の雑魚と残弾を消さない', () => {
+    const s = beginSession(12);
+    s.nextBossAt = 1e9;
+    stepFor(s, 0.6);
+    const mobIds = s.world.enemies.map((e) => e.id);
+    expect(mobIds.length).toBeGreaterThan(0);
+    s.world.bullets.push({ id: 9998, pos: { x: 20, y: 20 }, vel: { x: 0, y: 0 }, radius: 4, owner: 'enemy' });
+    expect(spawnBoss(s, 'normal')).toBe(true);
+    expect(mobIds.every((id) => s.world.enemies.some((e) => e.id === id))).toBe(true);
+    expect(s.world.bullets.some((b) => b.id === 9998)).toBe(true);
   });
 
   it('ボス撃破で HP+1回復・武器強化・撃破数+1・次のボス予約', () => {

@@ -78,10 +78,10 @@ describe('特徴ボス', () => {
     debugSpawnBossKind(s, 'reversa');
     s.world.bullets.push({ id: 9000, pos: { x: 10, y: 10 }, vel: { x: 0, y: 0 }, radius: 4, owner: 'enemy' });
     debugReversaMode(s, 'swap');
-    expect(s.world.bullets).toHaveLength(0);
+    expect(s.world.bullets).toHaveLength(1); // 残弾は消さず、新規発射だけ止める
     expect(s.world.firingEnabled).toBe(false);
     stepFor(s, 1.5);
-    expect(s.world.bullets).toHaveLength(0);
+    expect(s.world.bullets).toHaveLength(1);
     stepFor(s, 0.6);
     expect(s.world.firingEnabled).toBe(true);
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
