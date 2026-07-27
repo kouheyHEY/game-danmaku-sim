@@ -54,7 +54,8 @@ async function main(): Promise<void> {
   document.addEventListener('gesturestart', (e) => e.preventDefault());
 
   const renderer = new SessionRenderer(app.stage);
-  let session: Session = titleSession();
+  const featureBossOnly = /[?&]bossrush\b/.test(location.search);
+  let session: Session = titleSession(undefined, { featureBossOnly });
   let acc = 0;
 
   // ドラッグで自機を相対追従。復帰スライド完了時は指へ瞬間移動しないようつかみ直す。
@@ -92,7 +93,7 @@ async function main(): Promise<void> {
   canvas.addEventListener('pointerdown', (e) => {
     canvas.focus();
     if (session.phase === 'title' || session.phase === 'gameover') {
-      session = beginSession(); // Tap to Start / restart
+      session = beginSession(undefined, { featureBossOnly: session.featureBossOnly }); // Tap to Start / restart
       acc = 0;
       wasLocked = false;
       return;
@@ -153,6 +154,7 @@ async function main(): Promise<void> {
       { label: '強敵ボス出現', onClick: () => debugSpawnStrongBoss(session) },
       ...BOSS_ORDER.map((kind) => ({ label: `BOSS ${BOSS_NAMES[kind]}`, onClick: () => debugSpawnBossKind(session, kind) })),
       { label: 'ボスイベント発動', onClick: () => debugTriggerBossEvent(session) },
+      { label: '大ボス連戦開始', onClick: () => { session = beginSession(undefined, { featureBossOnly: true }); acc = 0; stopDragging(); } },
       { label: 'リバーサA 上下反転', onClick: () => debugReversaMode(session, 'swap') },
       { label: 'リバーサB 攻撃反転', onClick: () => debugReversaMode(session, 'regen') },
       { label: 'リバーサC 操作反転', onClick: () => debugReversaMode(session, 'invert') },
@@ -167,7 +169,7 @@ async function main(): Promise<void> {
       { label: '無敵', onClick: () => debugToggleInvuln(session) },
       { label: '弾消し', onClick: () => debugClearBullets(session) },
       { label: 'スコア+100', onClick: () => debugAddScore(session, 100) },
-      { label: 'リスタート', onClick: () => { session = beginSession(); acc = 0; wasLocked = false; } },
+      { label: 'リスタート', onClick: () => { session = beginSession(undefined, { featureBossOnly: session.featureBossOnly }); acc = 0; stopDragging(); } },
       ...WEAPON_UPGRADES.map((u) => ({ label: '⚑' + u.name, onClick: () => debugGiveUpgrade(session, u) })),
     ];
     mountDebugPanel(buttons);

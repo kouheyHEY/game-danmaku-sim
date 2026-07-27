@@ -84,6 +84,22 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     expect(s.world.bullets.some((b) => b.id === 9998)).toBe(true);
   });
 
+  it('大ボス連戦モードは雑魚・通常ボスを出さず、特徴ボスを短い間隔で連戦する', () => {
+    const s = beginSession(13, { featureBossOnly: true });
+    s.world.ship.invulnUntil = 1e9;
+    expect(s.nextMobAt).toBe(Number.POSITIVE_INFINITY);
+    stepFor(s, 1);
+    expect(s.bossKind).toBe('reversa');
+    expect(s.bossIsStrong).toBe(true);
+    s.world.enemies.forEach((e) => (e.hp = 0));
+    stepSession(s, STILL, DT);
+    expect(s.phase).toBe('reward');
+    expect(chooseSpecialUpgrade(s, 0)).toBe(true);
+    stepFor(s, 1.4);
+    expect(s.bossKind).toBe('sniper');
+    expect(s.world.enemies.every((e) => e.role !== 'mob')).toBe(true);
+  });
+
   it('ボス撃破で HP+1回復・武器強化・撃破数+1・次のボス予約', () => {
     const s = beginSession(1);
     s.world.ship.invulnUntil = 1e9;

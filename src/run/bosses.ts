@@ -123,6 +123,10 @@ export function bossKindForLevel(level: number): BossKind {
   return BOSS_ORDER[featureIndex % BOSS_ORDER.length];
 }
 
+export function featureBossKindForLevel(level: number): FeatureBossKind {
+  return BOSS_ORDER[level % BOSS_ORDER.length];
+}
+
 export function makeBossEncounter(
   kind: BossKind,
   level: number,

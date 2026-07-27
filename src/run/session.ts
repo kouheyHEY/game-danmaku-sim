@@ -7,7 +7,7 @@ import { buildWeapon } from './weapon';
 import { makeMob, mobInterval } from './content';
 import { drawSpecialUpgrades, randomWeaponUpgrade, type SpecialUpgrade } from './upgrades';
 import {
-  BOSS_NAMES, applyBossHit, bossDefeated, bossKindForLevel, cleanupBoss, finishBossStep,
+  BOSS_NAMES, applyBossHit, bossDefeated, bossKindForLevel, cleanupBoss, featureBossKindForLevel, finishBossStep,
   makeBossEncounter, prepareBossStep, takeBossNotice, type BossEncounter, type BossKind,
 } from './bosses';
 
@@ -15,6 +15,7 @@ export const IFRAME = 2.0; // 被弾後の無敵(点滅) [s]
 export const RESPAWN_TIME = 0.7; // 画面下から復帰しきるまで [s]
 const BOSS_FIRST = 12; // 最初のボスまで [s]
 const BOSS_INTERVAL = 16; // 撃破後、次のボスまで [s]
+const BOSS_RUSH_INTERVAL = 1.2; // デバッグ連戦時の待ち時間 [s]
 const ESCAPE_MARGIN = 40; // 画面下にこれだけ抜けたら退場
 
 export type Phase = 'title' | 'playing' | 'paused' | 'reward' | 'gameover';
@@ -42,6 +43,11 @@ export interface Session {
   toast: Toast | null;
   rng: Rng;
   seed: number;
+  featureBossOnly: boolean;
+}
+
+export interface SessionOptions {
+  featureBossOnly?: boolean;
 }
 
 function newWorld(loadout: PlayerLoadout, seed: number): World {
@@ -55,7 +61,7 @@ function newWorld(loadout: PlayerLoadout, seed: number): World {
   return world;
 }
 
-export function beginSession(seed = Date.now()): Session {
+export function beginSession(seed = Date.now(), options: SessionOptions = {}): Session {
   const s = seed >>> 0;
   const loadout = startingLoadout();
   const world = newWorld(loadout, s);
@@ -66,8 +72,8 @@ export function beginSession(seed = Date.now()): Session {
     level: 0,
     score: 0,
     kills: 0,
-    nextMobAt: world.time + 0.4,
-    nextBossAt: world.time + BOSS_FIRST,
+    nextMobAt: options.featureBossOnly ? Number.POSITIVE_INFINITY : world.time + 0.4,
+    nextBossAt: world.time + (options.featureBossOnly ? 0.8 : BOSS_FIRST),
     bossId: null,
     bossKind: null,
     boss: null,
@@ -77,11 +83,12 @@ export function beginSession(seed = Date.now()): Session {
     toast: null,
     rng: makeRng(s),
     seed: s,
+    featureBossOnly: options.featureBossOnly ?? false,
   };
 }
 
-export function titleSession(seed = Date.now()): Session {
-  const s = beginSession(seed);
+export function titleSession(seed = Date.now(), options: SessionOptions = {}): Session {
+  const s = beginSession(seed, options);
   s.phase = 'title';
   return s;
 }
@@ -178,8 +185,8 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
     } else {
       const name = randomWeaponUpgrade(session.rng, session.loadout);
       ship.weapon = buildWeapon(session.loadout.weapon);
-      session.nextBossAt = w.time + BOSS_INTERVAL;
-      session.nextMobAt = w.time + 0.8; // 雑魚湧き再開
+      session.nextBossAt = w.time + (session.featureBossOnly ? BOSS_RUSH_INTERVAL : BOSS_INTERVAL);
+      session.nextMobAt = session.featureBossOnly ? Number.POSITIVE_INFINITY : w.time + 0.8; // 雑魚湧き再開
       session.toast = { text: `BOSS撃破！  +1HP ・ ${name}`, until: w.time + 2.4 };
     }
   }
@@ -192,8 +199,9 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
   // 出現：ボス中は雑魚を止める
   if (session.phase === 'playing' && session.bossId == null) {
     if (w.time >= session.nextBossAt) {
-      const strong = (session.level + 1) % 3 === 0;
-      spawnBoss(session, bossKindForLevel(session.level), strong);
+      const strong = session.featureBossOnly || (session.level + 1) % 3 === 0;
+      const kind = session.featureBossOnly ? featureBossKindForLevel(session.level) : bossKindForLevel(session.level);
+      spawnBoss(session, kind, strong);
     } else if (w.time >= session.nextMobAt) {
       const id = session.nextEnemyId++;
       const x = w.bounds.x + 20 + session.rng.next() * (w.bounds.w - 40);
@@ -236,8 +244,8 @@ export function chooseSpecialUpgrade(session: Session, index: number): boolean {
   ship.weapon = buildWeapon(session.loadout.weapon);
   session.specialChoices = [];
   session.phase = 'playing';
-  session.nextBossAt = session.world.time + BOSS_INTERVAL;
-  session.nextMobAt = session.world.time + 0.8;
+  session.nextBossAt = session.world.time + (session.featureBossOnly ? BOSS_RUSH_INTERVAL : BOSS_INTERVAL);
+  session.nextMobAt = session.featureBossOnly ? Number.POSITIVE_INFINITY : session.world.time + 0.8;
   session.toast = { text: `特別強化 ・ ${upgrade.name}`, until: session.world.time + 2.4 };
   return true;
 }
