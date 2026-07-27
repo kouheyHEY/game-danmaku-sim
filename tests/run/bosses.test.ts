@@ -76,16 +76,26 @@ describe('特徴ボス', () => {
     const s = beginSession(1);
     s.world.ship.autoFire = true;
     debugSpawnBossKind(s, 'reversa');
+    s.world.bullets.push({ id: 9000, pos: { x: 10, y: 10 }, vel: { x: 0, y: 0 }, radius: 4, owner: 'enemy' });
     debugReversaMode(s, 'swap');
+    expect(s.world.bullets).toHaveLength(0);
+    expect(s.world.firingEnabled).toBe(false);
+    stepFor(s, 1.5);
+    expect(s.world.bullets).toHaveLength(0);
+    stepFor(s, 0.6);
+    expect(s.world.firingEnabled).toBe(true);
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
     expect(s.world.ship.pos.y).toBeLessThan(s.world.bounds.h / 2);
     expect(boss.pos.y).toBeGreaterThan(s.world.bounds.h / 2);
-    stepSession(s, { moveX: 0, moveY: 0, target: { x: s.world.bounds.w / 2, y: s.world.bounds.h * 0.8 } }, DT);
-    expect(s.world.ship.pos.y).toBeLessThan(s.world.bounds.h / 2); // 指を旧来の下側に置いたままでも上側を操作
+    const normalTargetY = s.world.bounds.h * 0.3;
+    stepSession(s, { moveX: 0, moveY: 0, target: { x: s.world.bounds.w / 2, y: normalTargetY } }, DT);
+    expect(s.world.ship.pos.y).toBe(normalTargetY); // Aでもタッチ位置を鏡映しせず通常操作
+    stepFor(s, 0.3);
     expect(s.world.bullets.some((b) => b.owner === 'player' && b.vel.y > 0)).toBe(true);
     expect(s.world.bullets.some((b) => b.owner === 'enemy' && b.vel.y < 0)).toBe(true);
 
     debugReversaMode(s, 'invert');
+    stepFor(s, 2.1);
     const x0 = s.world.ship.pos.x;
     stepSession(s, { moveX: 1, moveY: 0 }, 0.1);
     expect(s.world.ship.pos.x).toBeLessThan(x0);
@@ -96,6 +106,7 @@ describe('特徴ボス', () => {
     s.world.ship.autoFire = false;
     debugSpawnBossKind(s, 'reversa');
     debugReversaMode(s, 'regen');
+    stepFor(s, 2.1);
     const runtime = s.boss!;
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
     boss.hp -= 10;

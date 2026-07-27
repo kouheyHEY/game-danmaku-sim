@@ -81,7 +81,8 @@ describe('デバッグアクション', () => {
     debugSpawnBossKind(s, 'reversa');
     debugReversaMode(s, 'invert');
     expect(s.boss?.kind).toBe('reversa');
-    expect(s.boss?.kind === 'reversa' && s.boss.mode).toBe('invert');
+    expect(s.boss?.kind === 'reversa' && s.boss.pendingMode).toBe('invert');
+    expect(s.world.firingEnabled).toBe(false);
 
     debugSpawnBossKind(s, 'tank');
     const tank = s.world.enemies.find((e) => e.id === s.bossId)!;

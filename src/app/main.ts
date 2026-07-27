@@ -63,6 +63,7 @@ async function main(): Promise<void> {
   let grab = { x: 0, y: 0 };
   let finger = { x: 0, y: 0 };
   let wasLocked = false;
+  let reversaControlEpoch = 0;
   const toField = (e: PointerEvent) => {
     const r = canvas.getBoundingClientRect();
     return { x: ((e.clientX - r.left) / r.width) * FIELD.w, y: ((e.clientY - r.top) / r.height) * FIELD.h };
@@ -77,6 +78,13 @@ async function main(): Promise<void> {
     dragging = false;
     target = null;
     wasLocked = false;
+  };
+  const currentReversaControlEpoch = () => session.boss?.kind === 'reversa' ? session.boss.controlEpoch : 0;
+  const syncReversaControl = () => {
+    const epoch = currentReversaControlEpoch();
+    if (epoch === reversaControlEpoch) return;
+    reversaControlEpoch = epoch;
+    if (pointerActive) regrab();
   };
 
   canvas.tabIndex = 0;
@@ -162,6 +170,7 @@ async function main(): Promise<void> {
 
   app.ticker.add((ticker) => {
     if (session.phase === 'playing') {
+      syncReversaControl();
       const ship = session.world.ship;
       const locked = ship.respawnUntil > session.world.time;
       if (wasLocked && !locked && pointerActive) regrab();
@@ -172,8 +181,13 @@ async function main(): Promise<void> {
       acc += Math.min(ticker.deltaMS / 1000, MAX_FRAME);
       const input: ShipInput = dragging && target ? { moveX: 0, moveY: 0, target } : { moveX: 0, moveY: 0 };
       while (acc >= STEP) {
+        const controlEpochBefore = currentReversaControlEpoch();
         stepSession(session, input, STEP);
         acc -= STEP;
+        if (currentReversaControlEpoch() !== controlEpochBefore) {
+          syncReversaControl();
+          break;
+        }
         if (session.phase !== 'playing') break;
       }
     } else {

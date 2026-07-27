@@ -33,6 +33,9 @@ export interface ReversaBoss extends BossBase {
   lastMode: ReversaMode | null;
   nextEventAt: number;
   activeUntil: number;
+  transitionUntil: number;
+  pendingMode: ReversaMode | null;
+  controlEpoch: number;
   hitThisStep: boolean;
   normalPattern: Pattern;
   reversePattern: Pattern;
@@ -151,7 +154,11 @@ export function makeBossEncounter(
     e.pattern = normalPattern;
     return {
       enemies: [e],
-      encounter: { ...base, kind, mode: null, lastMode: null, nextEventAt: now + 2.5, activeUntil: 0, hitThisStep: false, normalPattern, reversePattern },
+      encounter: {
+        ...base, kind, mode: null, lastMode: null, nextEventAt: now + 2.5, activeUntil: 0,
+        transitionUntil: 0, pendingMode: null, controlEpoch: 0,
+        hitThisStep: false, normalPattern, reversePattern,
+      },
     };
   }
 
@@ -213,6 +220,10 @@ function clearEnemyBullets(world: World): void {
   world.bullets = world.bullets.filter((b) => b.owner !== 'enemy');
 }
 
+function clearAllBullets(world: World): void {
+  world.bullets = [];
+}
+
 function pushBullet(world: World, source: Vec2, angle: number, speed: number, radius: number, style: Bullet['style'] = 'normal', extra: Partial<Bullet> = {}): void {
   world.bullets.push({
     id: world.nextId++,
@@ -238,8 +249,10 @@ function activateReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoad
   const mode = forced ?? modes[Math.floor(world.rng.next() * modes.length)];
   runtime.mode = mode;
   runtime.lastMode = mode;
+  runtime.pendingMode = null;
+  runtime.transitionUntil = 0;
   runtime.activeUntil = world.time + 6;
-  clearEnemyBullets(world);
+  world.firingEnabled = true;
   const boss = getEnemy(world, runtime.primaryId);
   if (mode === 'swap') {
     world.ship.pos = { x: world.bounds.x + world.bounds.w / 2, y: world.bounds.y + world.bounds.h * 0.18 };
@@ -248,6 +261,7 @@ function activateReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoad
       boss.pos.y = world.bounds.y + world.bounds.h * 0.82;
       boss.pattern = runtime.reversePattern;
     }
+    runtime.controlEpoch += 1;
     runtime.notice = '上下反転';
   } else if (mode === 'regen') {
     runtime.notice = '攻撃で回復・未攻撃でダメージ';
@@ -256,10 +270,14 @@ function activateReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoad
   }
 }
 
-function resetReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoadout): void {
+function beginReversaTransition(runtime: ReversaBoss, world: World, loadout: PlayerLoadout, forced?: ReversaMode): void {
+  const modes: ReversaMode[] = ['swap', 'regen', 'invert'].filter((m) => m !== runtime.lastMode) as ReversaMode[];
   runtime.mode = null;
-  runtime.nextEventAt = world.time + 1.5;
-  clearEnemyBullets(world);
+  runtime.pendingMode = forced ?? modes[Math.floor(world.rng.next() * modes.length)];
+  runtime.transitionUntil = world.time + 2;
+  runtime.nextEventAt = Number.POSITIVE_INFINITY;
+  clearAllBullets(world);
+  world.firingEnabled = false;
   world.ship.pos = { x: world.bounds.x + world.bounds.w / 2, y: world.bounds.y + world.bounds.h * 0.8 };
   world.ship.weapon = buildWeapon(loadout.weapon);
   const boss = getEnemy(world, runtime.primaryId);
@@ -267,7 +285,8 @@ function resetReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoadout
     boss.pos.y = world.bounds.y + world.bounds.h * 0.16;
     boss.pattern = runtime.normalPattern;
   }
-  runtime.notice = '反転解除';
+  runtime.controlEpoch += 1;
+  runtime.notice = '転換準備・弾幕停止';
 }
 
 function reverseInput(input: ShipInput, ship: Vec2): ShipInput {
@@ -277,19 +296,25 @@ function reverseInput(input: ShipInput, ship: Vec2): ShipInput {
   return { ...input, moveX: -input.moveX, moveY: -input.moveY };
 }
 
-function swapSideInput(input: ShipInput, world: World): ShipInput {
-  if (input.target) {
-    return { ...input, target: { x: input.target.x, y: world.bounds.y * 2 + world.bounds.h - input.target.y } };
-  }
-  return { ...input, moveY: -input.moveY };
-}
-
 function stepReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoadout, input: ShipInput): ShipInput {
   runtime.hitThisStep = false;
-  if (runtime.mode && world.time >= runtime.activeUntil) resetReversa(runtime, world, loadout);
-  else if (!runtime.mode && world.time >= runtime.nextEventAt) activateReversa(runtime, world, loadout);
+  if (runtime.transitionUntil > 0) {
+    world.firingEnabled = false;
+    if (world.time >= runtime.transitionUntil && runtime.pendingMode) {
+      activateReversa(runtime, world, loadout, runtime.pendingMode);
+      return { moveX: 0, moveY: 0 };
+    }
+    return input;
+  }
+  if (runtime.mode && world.time >= runtime.activeUntil) {
+    beginReversaTransition(runtime, world, loadout);
+    return { moveX: 0, moveY: 0 };
+  }
+  if (!runtime.mode && world.time >= runtime.nextEventAt) {
+    beginReversaTransition(runtime, world, loadout);
+    return { moveX: 0, moveY: 0 };
+  }
   if (runtime.mode === 'invert') return reverseInput(input, world.ship.pos);
-  if (runtime.mode === 'swap') return swapSideInput(input, world);
   return input;
 }
 
@@ -427,8 +452,7 @@ function activatePriestDuel(runtime: PriestBoss, world: World, loadout: PlayerLo
 }
 
 export function forceReversaMode(runtime: ReversaBoss, world: World, loadout: PlayerLoadout, mode: ReversaMode): void {
-  if (runtime.mode) resetReversa(runtime, world, loadout);
-  activateReversa(runtime, world, loadout, mode);
+  beginReversaTransition(runtime, world, loadout, mode);
 }
 
 export function forcePriestMode(runtime: PriestBoss, world: World, loadout: PlayerLoadout, mode: 'chase' | 'orb' | 'duel'): void {
@@ -529,9 +553,6 @@ export function finishBossStep(runtime: BossEncounter, world: World, loadout: Pl
     const boss = getEnemy(world, runtime.primaryId);
     if (boss) boss.hp -= 11 * dt;
   }
-  if (runtime.kind === 'reversa' && runtime.mode === 'swap') {
-    world.ship.pos.y = clamp(world.ship.pos.y, world.bounds.y, world.bounds.y + world.bounds.h * 0.46);
-  }
   if (runtime.kind === 'reversa' && runtime.mode !== 'swap') world.ship.weapon = buildWeapon(loadout.weapon);
 }
 
@@ -542,6 +563,7 @@ export function bossDefeated(runtime: BossEncounter, world: World): boolean {
 
 export function cleanupBoss(runtime: BossEncounter, world: World, loadout: PlayerLoadout): void {
   if (runtime.kind === 'reversa') world.ship.weapon = buildWeapon(loadout.weapon);
+  world.firingEnabled = true;
   world.ship.pos.y = clamp(world.ship.pos.y, world.bounds.y, world.bounds.y + world.bounds.h);
 }
 
@@ -554,6 +576,7 @@ export function takeBossNotice(runtime: BossEncounter): string | null {
 export function bossStatus(runtime: BossEncounter, world: World): string {
   if (runtime.kind === 'normal') return '通常弾幕';
   if (runtime.kind === 'reversa') {
+    if (runtime.transitionUntil > 0) return '転換準備・弾幕停止';
     const labels: Record<ReversaMode, string> = { swap: '上下反転', regen: '攻撃反転', invert: '操作反転' };
     return runtime.mode ? labels[runtime.mode] : '待機';
   }
