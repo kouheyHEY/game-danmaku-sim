@@ -47,7 +47,6 @@ export interface ShogunBoss extends BossBase {
   kind: 'shogun';
   wallId: number;
   sideNextAt: number;
-  sideFromLeft: boolean;
   wallNextAt: number;
   attackNextAt: number;
   waveIndex: number;
@@ -151,8 +150,8 @@ export function makeBossEncounter(
   if (kind === 'reversa') {
     const e = enemy(primaryId, { x: cx, y: top }, hp, strong ? 18 : 16);
     e.vel.x = 68 + level * 5;
-    const normalPattern = fan({ ways: 7, spread: 0.2, speed: 105 + level * 4, radius: 5, interval: 0.38, baseAngle: DOWN });
-    const reversePattern = fan({ ways: 7, spread: 0.2, speed: 105 + level * 4, radius: 5, interval: 0.38, baseAngle: UP });
+    const normalPattern = fan({ ways: 5, spread: 0.2, speed: 105 + level * 4, radius: 5, interval: 0.58, baseAngle: DOWN });
+    const reversePattern = fan({ ways: 5, spread: 0.2, speed: 105 + level * 4, radius: 5, interval: 0.58, baseAngle: UP });
     e.pattern = normalPattern;
     return {
       enemies: [e],
@@ -194,7 +193,7 @@ export function makeBossEncounter(
     return {
       enemies: [boss, wall],
       encounter: {
-        ...base, kind, wallId, sideNextAt: now + 0.8, sideFromLeft: true, wallNextAt: now + 1.4,
+        ...base, kind, wallId, sideNextAt: now + 0.45, wallNextAt: now + 1.4,
         attackNextAt: now + 1.2, waveIndex: 0, waveNextAt: 0, wasPlayerUpper: false,
       },
     };
@@ -312,8 +311,12 @@ function stepSniper(runtime: SniperBoss, world: World, level: number): void {
     const e = getEnemy(world, shooter.id);
     if (!e) continue;
     while (world.time >= shooter.nextShotAt) {
+      e.pos = {
+        x: world.bounds.x + world.bounds.w * (0.12 + world.rng.next() * 0.76),
+        y: world.bounds.y + world.bounds.h * (0.1 + world.rng.next() * 0.22),
+      };
       pushAimed(world, e.pos, 520 + level * 12, 5, 1, 0, 'sniper');
-      shooter.vulnerableUntil = world.time + 1.7;
+      shooter.vulnerableUntil = world.time + 2.4;
       shooter.nextShotAt += 3.1;
     }
     const exposed = world.time < shooter.vulnerableUntil;
@@ -329,18 +332,11 @@ function stepShogun(runtime: ShogunBoss, world: World, level: number): void {
   boss.targetable = !wall;
 
   while (world.time >= runtime.sideNextAt) {
-    const y = world.bounds.y + world.bounds.h * (0.16 + world.rng.next() * 0.64);
-    const fromLeft = runtime.sideFromLeft;
+    const y = world.bounds.y + world.bounds.h * (0.1 + world.rng.next() * 0.8);
+    const fromLeft = world.rng.next() < 0.5;
     const x = fromLeft ? world.bounds.x + 3 : world.bounds.x + world.bounds.w - 3;
-    for (const offset of [-24, 24]) {
-      const source = {
-        x,
-        y: clamp(y + offset, world.bounds.y + 8, world.bounds.y + world.bounds.h - 8),
-      };
-      pushBullet(world, source, fromLeft ? 0 : Math.PI, 112 + level * 3, 5, 'side');
-    }
-    runtime.sideFromLeft = !fromLeft;
-    runtime.sideNextAt += 0.58;
+    pushBullet(world, { x, y }, fromLeft ? 0 : Math.PI, 112 + level * 3, 5, 'side');
+    runtime.sideNextAt += 0.1 + world.rng.next() * 0.1;
   }
 
   if (wall) {

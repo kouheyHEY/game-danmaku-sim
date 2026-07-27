@@ -95,6 +95,9 @@ describe('特徴ボス', () => {
     expect(s.world.bullets.some((b) => b.owner === 'enemy' && b.vel.y < 0)).toBe(true);
     const reversaBullets = s.world.bullets.filter((b) => b.owner === 'enemy');
     expect(reversaBullets.every((b) => b.radius <= 5)).toBe(true);
+    s.world.bullets = [];
+    stepFor(s, 1.2);
+    expect(s.world.bullets.filter((b) => b.owner === 'enemy').length).toBeLessThanOrEqual(15);
 
     debugReversaMode(s, 'invert');
     stepFor(s, 2.1);
@@ -120,16 +123,22 @@ describe('特徴ボス', () => {
     expect(s.world.enemies.every((e) => e.visible === false && e.targetable === false)).toBe(true);
     debugTriggerBossEvent(s);
     stepSession(s, STILL, DT);
+    const firstAppearance = s.world.enemies.map((e) => ({ ...e.pos }));
+    expect(firstAppearance).not.toEqual(positions);
     expect(s.world.bullets.filter((b) => b.style === 'sniper')).toHaveLength(3);
     expect(s.world.enemies.every((e) => e.visible && e.targetable)).toBe(true);
 
     if (s.boss?.kind !== 'sniper') throw new Error('sniper runtime expected');
+    expect(s.boss.shooters.every((shooter) => shooter.vulnerableUntil - s.world.time > 2.3)).toBe(true);
     for (const shooter of s.boss.shooters) {
       shooter.vulnerableUntil = s.world.time;
       shooter.nextShotAt = 1e9;
     }
     stepSession(s, STILL, DT);
     expect(s.world.enemies.every((e) => e.visible === false && e.targetable === false)).toBe(true);
+    debugTriggerBossEvent(s);
+    stepSession(s, STILL, DT);
+    expect(s.world.enemies.map((e) => e.pos)).not.toEqual(firstAppearance);
   });
 
   it('ショウグンは壁撃破まで無敵で、その後は位置に応じて三方向弾と刀波を使う', () => {
@@ -141,7 +150,10 @@ describe('特徴ボス', () => {
     expect(boss.targetable).toBe(false);
     expect(s.world.enemies.some((e) => e.role === 'guard')).toBe(true);
     stepFor(s, 2);
-    expect(s.world.bullets.filter((b) => b.style === 'side').length).toBeGreaterThanOrEqual(6);
+    const sideBullets = s.world.bullets.filter((b) => b.style === 'side');
+    expect(sideBullets.length).toBeGreaterThanOrEqual(8);
+    expect(sideBullets.some((b) => b.vel.x > 0)).toBe(true);
+    expect(sideBullets.some((b) => b.vel.x < 0)).toBe(true);
     debugTriggerBossEvent(s);
     stepSession(s, STILL, DT);
     stepSession(s, STILL, DT);
