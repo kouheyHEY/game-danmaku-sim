@@ -4,8 +4,12 @@ import { makeRng, type Rng } from '../domain/rng';
 import { FIELD } from '../spec/stage0';
 import { startingLoadout, type PlayerLoadout } from './loadout';
 import { buildWeapon } from './weapon';
-import { makeMob, mobInterval, makeBoss, makeStrongBoss } from './content';
+import { makeMob, mobInterval } from './content';
 import { drawSpecialUpgrades, randomWeaponUpgrade, type SpecialUpgrade } from './upgrades';
+import {
+  BOSS_NAMES, applyBossHit, bossDefeated, bossKindForLevel, cleanupBoss, finishBossStep,
+  makeBossEncounter, prepareBossStep, takeBossNotice, type BossEncounter, type BossKind,
+} from './bosses';
 
 export const IFRAME = 2.0; // 被弾後の無敵(点滅) [s]
 export const RESPAWN_TIME = 0.7; // 画面下から復帰しきるまで [s]
@@ -30,6 +34,8 @@ export interface Session {
   nextMobAt: number;
   nextBossAt: number;
   bossId: number | null;
+  bossKind: BossKind | null;
+  boss: BossEncounter | null;
   bossIsStrong: boolean;
   specialChoices: SpecialUpgrade[];
   nextEnemyId: number;
@@ -63,6 +69,8 @@ export function beginSession(seed = Date.now()): Session {
     nextMobAt: world.time + 0.4,
     nextBossAt: world.time + BOSS_FIRST,
     bossId: null,
+    bossKind: null,
+    boss: null,
     bossIsStrong: false,
     specialChoices: [],
     nextEnemyId: 1,
@@ -104,12 +112,16 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
   const w = session.world;
   const ship = w.ship;
 
-  const used: ShipInput = w.time < ship.respawnUntil ? { moveX: 0, moveY: 0 } : input;
+  let used: ShipInput = w.time < ship.respawnUntil ? { moveX: 0, moveY: 0 } : input;
+  if (session.boss) used = prepareBossStep(session.boss, w, session.loadout, used, dt, session.level);
   const events = step(w, used, dt);
   for (const ev of events) {
     if (ev.kind === 'bullet-hits-enemy' && ev.owner === 'player') {
       const e = w.enemies.find((x) => x.id === ev.enemy);
-      if (e) e.hp -= session.loadout.weapon.damage;
+      if (e) {
+        if (session.boss?.enemyIds.includes(e.id)) applyBossHit(session.boss, w, e.id, session.loadout.weapon.damage);
+        else e.hp -= session.loadout.weapon.damage;
+      }
     } else if (ev.kind === 'bullet-hits-ship' && ev.owner === 'enemy') {
       if (w.time >= ship.invulnUntil) {
         ship.hp -= 1;
@@ -119,6 +131,11 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
       }
     }
   }
+  if (session.boss) {
+    finishBossStep(session.boss, w, session.loadout, dt);
+    const notice = takeBossNotice(session.boss);
+    if (notice) session.toast = { text: `${BOSS_NAMES[session.boss.kind]} ・ ${notice}`, until: w.time + 1.8 };
+  }
   if (w.time < ship.respawnUntil) {
     ship.pos = respawnSlide(w);
     ship.vel = { x: 0, y: 0 };
@@ -127,11 +144,9 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
   // 撃破（HP0）と退場（下に抜けた）を仕分け。撃破だけカウント。
   const bottom = w.bounds.y + w.bounds.h + ESCAPE_MARGIN;
   let killed = 0;
-  let bossKilled = false;
   w.enemies = w.enemies.filter((e) => {
     if (e.hp <= 0) {
       killed += 1;
-      if (e.id === session.bossId) bossKilled = true;
       return false;
     }
     return e.pos.y <= bottom; // 下に抜けた雑魚は退場（撃破ではない）
@@ -140,9 +155,14 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
   session.score = w.dodged;
   if (session.toast && w.time >= session.toast.until) session.toast = null;
 
-  if (bossKilled) {
+  const defeatedBoss = session.boss && bossDefeated(session.boss, w) ? session.boss : null;
+
+  if (defeatedBoss) {
     const wasStrong = session.bossIsStrong;
+    cleanupBoss(defeatedBoss, w, session.loadout);
     session.bossId = null;
+    session.bossKind = null;
+    session.boss = null;
     session.bossIsStrong = false;
     session.level += 1;
     ship.hp = Math.min(ship.maxHp, ship.hp + 1); // HP+1回復
@@ -172,14 +192,8 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
   // 出現：ボス中は雑魚を止める
   if (session.phase === 'playing' && session.bossId == null) {
     if (w.time >= session.nextBossAt) {
-      const id = session.nextEnemyId++;
       const strong = (session.level + 1) % 3 === 0;
-      w.enemies.push(strong
-        ? makeStrongBoss(id, session.level, w.bounds, session.rng)
-        : makeBoss(id, session.level, w.bounds, session.rng));
-      session.bossId = id;
-      session.bossIsStrong = strong;
-      if (strong) session.toast = { text: '強敵ボス', until: w.time + 2 };
+      spawnBoss(session, bossKindForLevel(session.level), strong);
     } else if (w.time >= session.nextMobAt) {
       const id = session.nextEnemyId++;
       const x = w.bounds.x + 20 + session.rng.next() * (w.bounds.w - 40);
@@ -188,6 +202,23 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
     }
   }
 
+}
+
+/** 指定ボスを安全な空戦場へ出現させる。通常進行とdev-loopで共用する。 */
+export function spawnBoss(session: Session, kind: BossKind, strong = false): boolean {
+  if (session.boss) return false;
+  const w = session.world;
+  w.enemies = [];
+  w.bullets = [];
+  const spawn = makeBossEncounter(kind, session.level, w.bounds, strong, w.time, () => session.nextEnemyId++);
+  w.enemies.push(...spawn.enemies);
+  session.boss = spawn.encounter;
+  session.bossId = spawn.encounter.primaryId;
+  session.bossKind = kind;
+  session.bossIsStrong = strong;
+  session.nextMobAt = Number.POSITIVE_INFINITY;
+  session.toast = { text: `${strong ? '強敵 ' : ''}${BOSS_NAMES[kind]}`, until: w.time + 2.2 };
+  return true;
 }
 
 /** 強敵ボス撃破後の2択を適用して戦闘へ戻る。 */

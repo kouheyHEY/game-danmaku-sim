@@ -25,6 +25,7 @@ HP+1 と弾幕強化（弾数/連射/威力/弾速/収束をランダム）→ �
 特別強化が2つ表示される。どちらかをタップすると強化を獲得し、進行を再開する。
 
 > 設計メモ：[docs/03_endless.md](docs/03_endless.md)。
+> 特徴ボス仕様：[docs/04_bosses.md](docs/04_bosses.md)。
 > 反転(2×2)やローグライト版の名残は [docs/01_skeleton.md](docs/01_skeleton.md) / [docs/02_roguelite.md](docs/02_roguelite.md)。
 
 ## 開発

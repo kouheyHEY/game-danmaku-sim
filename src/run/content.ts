@@ -39,6 +39,9 @@ export function makeMob(id: number, x: number, level: number, bounds: Rect, rng:
     hp: 1,
     maxHp: 1,
     pattern: pickMobPattern(level, rng),
+    role: 'mob',
+    visible: true,
+    targetable: true,
   };
 }
 

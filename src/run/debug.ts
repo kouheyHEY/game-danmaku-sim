@@ -1,5 +1,9 @@
-import type { Session } from './session';
-import { makeBoss, makeMob, makeStrongBoss } from './content';
+import { spawnBoss, type Session } from './session';
+import { makeMob } from './content';
+import {
+  cleanupBoss, forceBossEvent, forcePriestMode, forceReversaMode,
+  type BossKind, type PriestBoss, type ReversaBoss, type ReversaMode,
+} from './bosses';
 import { WEAPON_UPGRADES, randomWeaponUpgrade, type WeaponUpgrade } from './upgrades';
 import { buildWeapon } from './weapon';
 
@@ -8,20 +12,39 @@ import { buildWeapon } from './weapon';
  * すべて Session を直接操作するだけの純粋な副作用関数なのでテストしやすい。
  */
 
-export function debugSpawnBoss(s: Session): void {
-  if (s.bossId != null) return; // 既にボスがいれば何もしない
-  const id = s.nextEnemyId++;
-  s.world.enemies.push(makeBoss(id, s.level, s.world.bounds, s.rng));
-  s.bossId = id;
+function replaceBoss(s: Session, kind: BossKind, strong: boolean): void {
+  if (s.boss) cleanupBoss(s.boss, s.world, s.loadout);
+  s.boss = null;
+  s.bossId = null;
+  s.bossKind = null;
   s.bossIsStrong = false;
+  s.world.enemies = [];
+  s.world.bullets = [];
+  spawnBoss(s, kind, strong);
+}
+
+export function debugSpawnBoss(s: Session): void {
+  replaceBoss(s, 'reversa', false);
 }
 
 export function debugSpawnStrongBoss(s: Session): void {
-  if (s.bossId != null) return;
-  const id = s.nextEnemyId++;
-  s.world.enemies.push(makeStrongBoss(id, s.level, s.world.bounds, s.rng));
-  s.bossId = id;
-  s.bossIsStrong = true;
+  replaceBoss(s, 'reversa', true);
+}
+
+export function debugSpawnBossKind(s: Session, kind: BossKind): void {
+  replaceBoss(s, kind, false);
+}
+
+export function debugTriggerBossEvent(s: Session): void {
+  if (s.boss) forceBossEvent(s.boss, s.world);
+}
+
+export function debugReversaMode(s: Session, mode: ReversaMode): void {
+  if (s.boss?.kind === 'reversa') forceReversaMode(s.boss as ReversaBoss, s.world, s.loadout, mode);
+}
+
+export function debugPriestMode(s: Session, mode: 'chase' | 'orb' | 'duel'): void {
+  if (s.boss?.kind === 'priest') forcePriestMode(s.boss as PriestBoss, s.world, s.loadout, mode);
 }
 
 export function debugSpawnMob(s: Session): void {

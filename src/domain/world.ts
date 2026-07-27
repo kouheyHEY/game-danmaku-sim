@@ -147,6 +147,33 @@ function emitBullets(world: World, dt: number): void {
 function moveBullets(world: World, dt: number): void {
   for (const b of world.bullets) {
     b.pos = { x: b.pos.x + b.vel.x * dt, y: b.pos.y + b.vel.y * dt };
+    if (b.owner !== 'enemy' || !b.bouncesRemaining) continue;
+
+    const left = world.bounds.x + b.radius;
+    const right = world.bounds.x + world.bounds.w - b.radius;
+    const top = world.bounds.y + b.radius;
+    const bottom = world.bounds.y + world.bounds.h - b.radius;
+    let bounced = false;
+    if (b.pos.x < left || b.pos.x > right) {
+      b.pos.x = clamp(b.pos.x, left, right);
+      b.vel.x *= -1;
+      bounced = true;
+    }
+    if (b.pos.y < top || b.pos.y > bottom) {
+      b.pos.y = clamp(b.pos.y, top, bottom);
+      b.vel.y *= -1;
+      bounced = true;
+    }
+    if (bounced) {
+      b.bouncesRemaining -= 1;
+      const factor = b.bounceSpeedUp ?? 1;
+      b.vel.x *= factor;
+      b.vel.y *= factor;
+      if (b.maxBounceSpeed && Math.hypot(b.vel.x, b.vel.y) >= b.maxBounceSpeed) {
+        b.bouncesRemaining = 0;
+        b.expired = true;
+      }
+    }
   }
 }
 
@@ -154,6 +181,7 @@ function cullBullets(world: World): void {
   const { bounds } = world;
   const survivors: Bullet[] = [];
   for (const b of world.bullets) {
+    if (b.expired) continue;
     const inside =
       b.pos.x >= bounds.x - CULL_MARGIN &&
       b.pos.x <= bounds.x + bounds.w + CULL_MARGIN &&
@@ -176,7 +204,7 @@ function detectCollisions(world: World): CollisionEvent[] {
         continue; // 当たった弾は消す（同じ弾で連続失点しない）
       }
     } else {
-      const enemy = world.enemies.find((e) => circlesOverlap(b.pos, b.radius, e.pos, e.hitRadius));
+      const enemy = world.enemies.find((e) => e.targetable !== false && circlesOverlap(b.pos, b.radius, e.pos, e.hitRadius));
       if (enemy) {
         events.push({ kind: 'bullet-hits-enemy', bullet: b.id, enemy: enemy.id, owner: 'player' });
         continue;
@@ -218,5 +246,8 @@ export function defaultEnemy(id: EntityId, bounds: Rect): Enemy {
     hp: 100,
     maxHp: 100,
     pattern: null,
+    role: 'boss',
+    visible: true,
+    targetable: true,
   };
 }

@@ -26,7 +26,7 @@
 ```
 Session（run/session.ts） title / playing / gameover の状態機械
   ├ ambientRain(level)     全幅ランダムに降る雨（levelで濃く・速く）
-  ├ makeBoss(level)        たまに出る動く標的（HPあり）
+  ├ BossEncounter          5種の特徴ボスと複数個体を1戦として管理
   └ randomWeaponUpgrade    撃破時にランダムで武器強化
 World/step（domain）        無改修に近い形で流用（emitterPos/dodged のみ追加）
 SessionRenderer（render）   弾/自機/ボスHP＋右上スコア＋Tap to Start／GameOver

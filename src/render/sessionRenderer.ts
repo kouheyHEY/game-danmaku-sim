@@ -1,6 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { FIELD } from '../spec/stage0';
 import { RESPAWN_TIME, type Session } from '../run/session';
+import { BOSS_NAMES, bossStatus } from '../run/bosses';
 
 const BOSS = 0xff5d73;
 const STRONG_BOSS = 0xc084fc;
@@ -9,6 +10,14 @@ const ENEMY_BULLET_OUTLINE = 0x5c2d10;
 const PLAYER_BULLET = 0x67e8f9;
 const SHIP = 0x4ea1ff;
 const PLAYER_BULLET_VISUAL_MAX = 7;
+const BULLET_COLORS = {
+  normal: ENEMY_BULLET,
+  sniper: 0xff6b6b,
+  wave: 0xf8fafc,
+  orb: 0xc084fc,
+  side: 0x86efac,
+  tank: 0xf59e0b,
+} as const;
 
 export interface RewardCardRect { x: number; y: number; w: number; h: number }
 
@@ -45,6 +54,7 @@ export class SessionRenderer {
   private readonly scoreNum: Text;
   private readonly killsText: Text;
   private readonly toast: Text;
+  private readonly bossName: Text;
   private readonly pauseG = new Graphics();
   private readonly pauseText: Text;
   private readonly dim = new Graphics();
@@ -75,6 +85,10 @@ export class SessionRenderer {
     this.toast.anchor.set(0.5, 0);
     this.toast.position.set(FIELD.w / 2, 64);
 
+    this.bossName = new Text({ text: '', style: style(14, 0xe9d5ff, true) });
+    this.bossName.anchor.set(0.5, 0);
+    this.bossName.position.set(FIELD.w / 2, 92);
+
     this.pauseText = new Text({ text: 'II', style: style(17, 0xffffff, true) });
     this.pauseText.anchor.set(0.5);
 
@@ -96,7 +110,7 @@ export class SessionRenderer {
     });
 
     stage.addChild(
-      this.hpText, this.scoreLabel, this.scoreNum, this.killsText, this.toast, this.pauseG, this.pauseText,
+      this.hpText, this.scoreLabel, this.scoreNum, this.killsText, this.toast, this.bossName, this.pauseG, this.pauseText,
       this.dim, this.rewardG, this.rewardTitle, ...this.rewardTexts, this.center,
     );
   }
@@ -114,17 +128,20 @@ export class SessionRenderer {
         this.playerBulletsG.circle(b.pos.x, b.pos.y, visualRadius).fill({ color: PLAYER_BULLET, alpha: 0.46 });
       } else {
         // 暗い輪郭＋明るいコアで、自弾や背景の上でも敵弾の境界を保つ。
+        const color = BULLET_COLORS[b.style ?? 'normal'];
         this.enemyBulletsG.circle(b.pos.x, b.pos.y, b.radius + 2).fill({ color: ENEMY_BULLET_OUTLINE, alpha: 0.96 });
-        this.enemyBulletsG.circle(b.pos.x, b.pos.y, b.radius).fill({ color: ENEMY_BULLET });
+        this.enemyBulletsG.circle(b.pos.x, b.pos.y, b.radius).fill({ color });
       }
     }
 
     this.bossG.clear();
     for (const e of w.enemies) {
-      const strong = session.bossIsStrong && e.id === session.bossId;
-      const color = strong ? STRONG_BOSS : BOSS;
+      if (e.visible === false) continue;
+      const inBoss = !!session.boss?.enemyIds.includes(e.id);
+      const strong = session.bossIsStrong && inBoss;
+      const color = e.role === 'guard' ? 0x94a3b8 : e.role === 'sniper' ? 0x67e8f9 : strong ? STRONG_BOSS : BOSS;
       if (strong) this.bossG.circle(e.pos.x, e.pos.y, e.hitRadius + 8).stroke({ color: STRONG_BOSS, width: 4, alpha: 0.55 });
-      this.bossG.circle(e.pos.x, e.pos.y, e.hitRadius).fill({ color });
+      this.bossG.circle(e.pos.x, e.pos.y, e.hitRadius).fill({ color, alpha: e.targetable === false ? 0.34 : 1 });
       const bw = Math.max(24, e.hitRadius * 2.4);
       const bx = e.pos.x - bw / 2;
       const by = e.pos.y - e.hitRadius - 10;
@@ -160,6 +177,8 @@ export class SessionRenderer {
     this.hpText.visible = active;
     this.toast.text = session.toast?.text ?? '';
     this.toast.visible = active && !!session.toast;
+    this.bossName.text = session.boss ? `${BOSS_NAMES[session.boss.kind]} ・ ${bossStatus(session.boss, w)}` : '';
+    this.bossName.visible = active && !!session.bossKind;
 
     const pauseRect = pauseButtonRect();
     this.pauseG.clear();

@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { beginSession } from '../../src/run/session';
 import {
   debugSpawnBoss, debugSpawnStrongBoss, debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
-  debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, WEAPON_UPGRADES,
+  debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, debugSpawnBossKind,
+  debugTriggerBossEvent, debugReversaMode, debugPriestMode, WEAPON_UPGRADES,
 } from '../../src/run/debug';
 
 describe('デバッグアクション', () => {
@@ -73,5 +74,23 @@ describe('デバッグアクション', () => {
 
     debugAddScore(s, 100);
     expect(s.score).toBe(100);
+  });
+
+  it('特徴ボスを差し替え、個別イベントを即時発動できる', () => {
+    const s = beginSession(8);
+    debugSpawnBossKind(s, 'reversa');
+    debugReversaMode(s, 'invert');
+    expect(s.boss?.kind).toBe('reversa');
+    expect(s.boss?.kind === 'reversa' && s.boss.mode).toBe('invert');
+
+    debugSpawnBossKind(s, 'tank');
+    const tank = s.world.enemies.find((e) => e.id === s.bossId)!;
+    const hp0 = tank.hp;
+    debugTriggerBossEvent(s);
+    expect(tank.hp).toBeLessThan(hp0);
+
+    debugSpawnBossKind(s, 'priest');
+    debugPriestMode(s, 'duel');
+    expect(s.boss?.kind === 'priest' && s.boss.mode).toBe('duel');
   });
 });

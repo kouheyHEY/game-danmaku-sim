@@ -7,9 +7,11 @@ import {
 import { SessionRenderer, pauseButtonRect, specialRewardCardRects } from '../render/sessionRenderer';
 import { mountDebugPanel, debugEnabled, type DebugButton } from '../render/debugPanel';
 import {
-  debugSpawnBoss, debugSpawnStrongBoss, debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
+  debugSpawnBoss, debugSpawnStrongBoss, debugSpawnBossKind, debugTriggerBossEvent, debugReversaMode, debugPriestMode,
+  debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
   debugAddMaxHp, debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, WEAPON_UPGRADES,
 } from '../run/debug';
+import { BOSS_NAMES, BOSS_ORDER } from '../run/bosses';
 
 const STEP = 1 / 120; // 固定タイムステップ（決定論・当たり判定の安定）
 const MAX_FRAME = 0.25; // スパイク時の暴走防止
@@ -136,6 +138,14 @@ async function main(): Promise<void> {
     const buttons: DebugButton[] = [
       { label: 'ボス出現', onClick: () => debugSpawnBoss(session) },
       { label: '強敵ボス出現', onClick: () => debugSpawnStrongBoss(session) },
+      ...BOSS_ORDER.map((kind) => ({ label: `BOSS ${BOSS_NAMES[kind]}`, onClick: () => debugSpawnBossKind(session, kind) })),
+      { label: 'ボスイベント発動', onClick: () => debugTriggerBossEvent(session) },
+      { label: 'リバーサA 上下反転', onClick: () => debugReversaMode(session, 'swap') },
+      { label: 'リバーサB 攻撃反転', onClick: () => debugReversaMode(session, 'regen') },
+      { label: 'リバーサC 操作反転', onClick: () => debugReversaMode(session, 'invert') },
+      { label: 'プリーストA 追跡', onClick: () => debugPriestMode(session, 'chase') },
+      { label: 'プリーストB 加速弾', onClick: () => debugPriestMode(session, 'orb') },
+      { label: 'プリーストC 決闘', onClick: () => debugPriestMode(session, 'duel') },
       { label: '雑魚出現', onClick: () => debugSpawnMob(session) },
       { label: 'Lv+強化', onClick: () => debugLevelUp(session) },
       { label: '全回復', onClick: () => debugFullHeal(session) },

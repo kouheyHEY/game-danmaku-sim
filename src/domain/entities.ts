@@ -29,6 +29,9 @@ export interface Enemy {
   hp: number;
   maxHp: number;
   pattern: Pattern | null; // この敵が撃つ弾幕（自分の位置から発射）
+  role?: 'mob' | 'boss' | 'sniper' | 'guard';
+  visible?: boolean; // false の間は描画しない（スナイパーの潜伏など）
+  targetable?: boolean; // false の間は自弾が透過する
 }
 
 export interface Bullet {
@@ -37,6 +40,11 @@ export interface Bullet {
   vel: Vec2;
   radius: number;
   owner: Faction;
+  bouncesRemaining?: number; // 画面端で反射できる残り回数
+  bounceSpeedUp?: number; // 反射時の速度倍率
+  maxBounceSpeed?: number; // この速度へ達したら反射を終える
+  expired?: boolean; // 特殊寿命を終え、次の整理で消える
+  style?: 'normal' | 'sniper' | 'wave' | 'orb' | 'side' | 'tank';
 }
 
 /** プレイヤーの1フレーム入力。方向(-1..1)・発射・タッチ目標位置。 */

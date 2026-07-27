@@ -13,11 +13,15 @@ export interface WeaponSpec {
 
 const UP = -Math.PI / 2; // 上向き
 
-export function buildWeapon(s: WeaponSpec): Pattern {
-  const common = { speed: s.speed, radius: s.radius, interval: s.interval, baseAngle: UP };
+export function buildWeaponAtAngle(s: WeaponSpec, angle: number): Pattern {
+  const common = { speed: s.speed, radius: s.radius, interval: s.interval, baseAngle: angle };
   if (s.kind === 'odd') return oddSpread({ ...common, ways: s.ways, spread: s.spread });
   if (s.kind === 'even') return evenSpread({ ...common, ways: s.ways, spread: s.spread });
-  return oneWay({ speed: s.speed, radius: s.radius, interval: s.interval, angle: UP });
+  return oneWay({ speed: s.speed, radius: s.radius, interval: s.interval, angle });
+}
+
+export function buildWeapon(s: WeaponSpec): Pattern {
+  return buildWeaponAtAngle(s, UP);
 }
 
 export function describeWeapon(s: WeaponSpec): string {
