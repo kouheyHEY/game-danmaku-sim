@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   titleSession, beginSession, stepSession, chooseSpecialUpgrade, pauseSession, resumeSession, spawnBoss,
+  multiplierForPriestDefeats, scoreForDodged,
 } from '../../src/run/session';
 import { randomWeaponUpgrade } from '../../src/run/upgrades';
 import { startingLoadout } from '../../src/run/loadout';
@@ -34,6 +35,8 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     expect(s.world.enemyPattern).toBeNull(); // 弾は敵が撃つ
     expect(s.world.enemies).toHaveLength(0);
     expect(s.kills).toBe(0);
+    expect(s.scoreMultiplier).toBe(1);
+    expect(s.priestDefeats).toBe(0);
     expect(s.bossId).toBeNull();
   });
 
@@ -119,6 +122,19 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     expect(JSON.stringify(s.loadout.weapon)).not.toBe(wpnBefore); // 強化された
     expect(s.toast).not.toBeNull();
     expect(s.nextBossAt).toBeGreaterThan(s.world.time);
+  });
+
+  it('プリースト撃破ごとに倍率が1.1乗され、避けた弾数へ反映される', () => {
+    const s = beginSession(21);
+    s.world.dodged = 10;
+    expect(spawnBoss(s, 'priest', true)).toBe(true);
+    s.world.enemies.forEach((e) => (e.hp = 0));
+    stepSession(s, STILL, DT);
+    expect(s.priestDefeats).toBe(1);
+    expect(s.scoreMultiplier).toBeCloseTo(1.1);
+    expect(s.score).toBeCloseTo(11);
+    expect(multiplierForPriestDefeats(3)).toBeCloseTo(1.331);
+    expect(scoreForDodged(10, 3)).toBeCloseTo(13.31);
   });
 
   it('3体目ごとに通常より硬い強敵ボスが出現する', () => {

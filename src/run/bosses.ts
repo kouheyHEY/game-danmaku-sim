@@ -403,16 +403,14 @@ function stepTank(runtime: TankBoss, world: World, level: number): void {
 
   const normalSpeed = (135 + level * 6) * (1 + runtime.stage * 0.12);
   const normalRadius = 5.5 + runtime.stage * 0.8;
-  let speed = normalSpeed;
+  const speed = normalSpeed;
   let radius = normalRadius;
   let bouncing = false;
   if (runtime.rebound) {
-    speed = 42;
     radius = 3;
     bouncing = true;
   } else if (world.time < runtime.recoverUntil) {
     const p = clamp(1 - (runtime.recoverUntil - world.time) / 3, 0, 1);
-    speed = 42 + (normalSpeed - 42) * p;
     radius = 3 + (normalRadius - 3) * p;
   }
   const densitySteps = Math.floor(runtime.stage / 2);

@@ -15,7 +15,7 @@ export interface World {
   enemyPattern: Pattern | null; // 敵弾パターン
   emitterPos: Vec2; // 敵弾の発生源（上部中央固定）。敵の有無に依らず雨を降らせる
   firingEnabled: boolean;
-  dodged: number; // 画面外に消えた敵弾の数（＝スコア）
+  dodged: number; // 画面外に消えた敵弾の数（スコアの基礎値）
   nextId: EntityId;
 }
 
@@ -189,7 +189,7 @@ function cullBullets(world: World): void {
       b.pos.y >= bounds.y - CULL_MARGIN &&
       b.pos.y <= bounds.y + bounds.h + CULL_MARGIN;
     if (inside) survivors.push(b);
-    else if (b.owner === 'enemy') world.dodged += 1; // 画面外に消えた敵弾＝避けた
+    else if (b.owner === 'enemy') world.dodged += 1; // 画面外に消えた敵弾＝避けた弾数
   }
   world.bullets = survivors;
 }

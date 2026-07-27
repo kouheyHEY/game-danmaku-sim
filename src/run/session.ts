@@ -30,7 +30,9 @@ export interface Session {
   world: World;
   loadout: PlayerLoadout;
   level: number; // 撃破したボス数
-  score: number; // ＝避けた弾数（world.dodged）
+  score: number; // 避けた弾数 × scoreMultiplier
+  scoreMultiplier: number; // 1.1 ^ priestDefeats
+  priestDefeats: number;
   kills: number; // 倒した敵の数（雑魚＋ボス）
   nextMobAt: number;
   nextBossAt: number;
@@ -48,6 +50,14 @@ export interface Session {
 
 export interface SessionOptions {
   featureBossOnly?: boolean;
+}
+
+export function multiplierForPriestDefeats(priestDefeats: number): number {
+  return 1.1 ** Math.max(0, Math.floor(priestDefeats));
+}
+
+export function scoreForDodged(dodged: number, priestDefeats: number): number {
+  return dodged * multiplierForPriestDefeats(priestDefeats);
 }
 
 function newWorld(loadout: PlayerLoadout, seed: number): World {
@@ -71,6 +81,8 @@ export function beginSession(seed = Date.now(), options: SessionOptions = {}): S
     loadout,
     level: 0,
     score: 0,
+    scoreMultiplier: 1,
+    priestDefeats: 0,
     kills: 0,
     nextMobAt: options.featureBossOnly ? Number.POSITIVE_INFINITY : world.time + 0.4,
     nextBossAt: world.time + (options.featureBossOnly ? 0.8 : BOSS_FIRST),
@@ -159,13 +171,18 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
     return e.pos.y <= bottom; // 下に抜けた雑魚は退場（撃破ではない）
   });
   session.kills += killed;
-  session.score = w.dodged;
+  session.score = scoreForDodged(w.dodged, session.priestDefeats);
   if (session.toast && w.time >= session.toast.until) session.toast = null;
 
   const defeatedBoss = session.boss && bossDefeated(session.boss, w) ? session.boss : null;
 
   if (defeatedBoss) {
     const wasStrong = session.bossIsStrong;
+    if (defeatedBoss.kind === 'priest') {
+      session.priestDefeats += 1;
+      session.scoreMultiplier = multiplierForPriestDefeats(session.priestDefeats);
+      session.score = scoreForDodged(w.dodged, session.priestDefeats);
+    }
     cleanupBoss(defeatedBoss, w, session.loadout);
     session.bossId = null;
     session.bossKind = null;

@@ -2,6 +2,7 @@ import { Container, Graphics, Text } from 'pixi.js';
 import { FIELD } from '../spec/stage0';
 import { RESPAWN_TIME, type Session } from '../run/session';
 import { BOSS_NAMES, bossStatus } from '../run/bosses';
+import { formatMultiplier, formatScore } from './numberFormat';
 
 const BOSS = 0xff5d73;
 const STRONG_BOSS = 0xc084fc;
@@ -52,6 +53,8 @@ export class SessionRenderer {
   private readonly hpText: Text;
   private readonly scoreLabel: Text;
   private readonly scoreNum: Text;
+  private readonly multiplierText: Text;
+  private readonly dodgedText: Text;
   private readonly killsText: Text;
   private readonly toast: Text;
   private readonly bossName: Text;
@@ -71,15 +74,21 @@ export class SessionRenderer {
     this.hpText = new Text({ text: '', style: { ...style(15, 0xff8fa3), align: 'left' } });
     this.hpText.position.set(62, 16);
 
-    this.scoreLabel = new Text({ text: '避けた弾', style: style(12, 0x9aa3b8) });
+    this.scoreLabel = new Text({ text: 'スコア', style: style(12, 0x9aa3b8) });
     this.scoreLabel.anchor.set(1, 0);
     this.scoreLabel.position.set(FIELD.w - 10, 6);
     this.scoreNum = new Text({ text: '0', style: style(28, 0xffffff, true) });
     this.scoreNum.anchor.set(1, 0);
     this.scoreNum.position.set(FIELD.w - 10, 20);
+    this.multiplierText = new Text({ text: '×1.00', style: style(12, 0xfde68a, true) });
+    this.multiplierText.anchor.set(1, 0);
+    this.multiplierText.position.set(FIELD.w - 10, 52);
+    this.dodgedText = new Text({ text: '避けた弾 0', style: style(13, 0x9aa3b8) });
+    this.dodgedText.anchor.set(1, 0);
+    this.dodgedText.position.set(FIELD.w - 10, 70);
     this.killsText = new Text({ text: '撃破 0', style: style(14, 0x9fe8b0) });
     this.killsText.anchor.set(1, 0);
-    this.killsText.position.set(FIELD.w - 10, 56);
+    this.killsText.position.set(FIELD.w - 10, 90);
 
     this.toast = new Text({ text: '', style: style(16, 0xfff0a8, true) });
     this.toast.anchor.set(0.5, 0);
@@ -110,7 +119,8 @@ export class SessionRenderer {
     });
 
     stage.addChild(
-      this.hpText, this.scoreLabel, this.scoreNum, this.killsText, this.toast, this.bossName, this.pauseG, this.pauseText,
+      this.hpText, this.scoreLabel, this.scoreNum, this.multiplierText, this.dodgedText, this.killsText,
+      this.toast, this.bossName, this.pauseG, this.pauseText,
       this.dim, this.rewardG, this.rewardTitle, ...this.rewardTexts, this.center,
     );
   }
@@ -167,12 +177,16 @@ export class SessionRenderer {
     }
 
     this.hpText.text = 'HP ' + '♥'.repeat(Math.max(0, ship.hp));
-    this.scoreNum.text = String(session.score);
+    this.scoreNum.text = formatScore(session.score);
+    this.multiplierText.text = formatMultiplier(session.scoreMultiplier);
+    this.dodgedText.text = `避けた弾 ${formatScore(w.dodged)}`;
     this.killsText.text = `撃破 ${session.kills}`;
     const playing = session.phase === 'playing';
     const active = playing || session.phase === 'paused';
     this.scoreLabel.visible = active;
     this.scoreNum.visible = active;
+    this.multiplierText.visible = active;
+    this.dodgedText.visible = active;
     this.killsText.visible = active;
     this.hpText.visible = active;
     this.toast.text = session.toast?.text ?? '';
@@ -202,7 +216,7 @@ export class SessionRenderer {
       this.center.visible = true;
     } else if (session.phase === 'gameover') {
       this.dim.rect(0, 0, FIELD.w, FIELD.h).fill({ color: 0x0b0d12, alpha: 0.72 });
-      this.center.text = `GAME OVER\n避けた弾  ${session.score}  ・  撃破  ${session.kills}\n\nTap to restart`;
+      this.center.text = `GAME OVER\nスコア  ${formatScore(session.score)}  ${formatMultiplier(session.scoreMultiplier)}\n避けた弾  ${formatScore(w.dodged)}  ・  撃破  ${session.kills}\n\nTap to restart`;
       this.center.visible = true;
     } else if (session.phase === 'reward') {
       this.dim.rect(0, 0, FIELD.w, FIELD.h).fill({ color: 0x0b0d12, alpha: 0.84 });

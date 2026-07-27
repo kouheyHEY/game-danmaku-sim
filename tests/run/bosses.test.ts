@@ -175,7 +175,7 @@ describe('特徴ボス', () => {
     expect(s.world.bullets.filter((b) => b.style === 'wave')).toHaveLength(21);
   });
 
-  it('タンクは耐久が高く、段階3で低速小型の1回跳弾へ変化し、次段階で復元を始める', () => {
+  it('タンクは耐久が高く、段階3で通常速度の小型1回跳弾へ変化し、次段階でサイズ復元を始める', () => {
     const s = beginSession(5);
     s.world.ship.autoFire = false;
     debugSpawnBossKind(s, 'tank');
@@ -197,7 +197,7 @@ describe('特徴ボス', () => {
     s.boss.nextShotAt = s.world.time;
     stepSession(s, STILL, DT);
     const bounce = s.world.bullets.find((b) => b.style === 'tank')!;
-    expect(Math.hypot(bounce.vel.x, bounce.vel.y)).toBeLessThan(60);
+    expect(Math.hypot(bounce.vel.x, bounce.vel.y)).toBeGreaterThan(180);
     expect(bounce.radius).toBe(3);
     expect(bounce.bouncesRemaining).toBe(1);
 
