@@ -18,6 +18,8 @@ const BULLET_COLORS = {
   orb: 0xc084fc,
   side: 0x86efac,
   tank: 0xf59e0b,
+  reversaEven: 0xf0abfc,
+  reversaAimed: 0x60a5fa,
 } as const;
 
 export interface RewardCardRect { x: number; y: number; w: number; h: number }

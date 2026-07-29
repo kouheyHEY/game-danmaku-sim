@@ -1,14 +1,17 @@
 import type { Bullet, Enemy, ShipInput } from '../domain/entities';
 import { clamp, type Rect, type Vec2 } from '../domain/math';
-import { fan, type Pattern } from '../domain/pattern';
+import type { Pattern } from '../domain/pattern';
 import type { World } from '../domain/world';
 import type { Rng } from '../domain/rng';
 import { makeBoss } from './content';
 import type { PlayerLoadout } from './loadout';
 import { buildWeapon, buildWeaponAtAngle, type WeaponSpec } from './weapon';
 
-const UP = -Math.PI / 2;
 const DOWN = Math.PI / 2;
+const REVERSA_FAST_SPEED = 180;
+const REVERSA_SLOW_SPEED = 62;
+const REVERSA_EVEN_INTERVAL = 0.9;
+const REVERSA_AIMED_INTERVAL = 0.32;
 
 export const BOSS_ORDER = ['reversa', 'sniper', 'shogun', 'tank', 'priest'] as const;
 export type FeatureBossKind = typeof BOSS_ORDER[number];
@@ -34,8 +37,9 @@ export interface ReversaBoss extends BossBase {
   transitionUntil: number;
   pendingMode: ReversaMode | null;
   controlEpoch: number;
-  normalPattern: Pattern;
-  reversePattern: Pattern;
+  evenNextAt: number;
+  aimedNextAt: number;
+  speedSwapped: boolean;
 }
 
 export interface SniperBoss extends BossBase {
@@ -150,15 +154,14 @@ export function makeBossEncounter(
   if (kind === 'reversa') {
     const e = enemy(primaryId, { x: cx, y: top }, hp, strong ? 18 : 16);
     e.vel.x = 68 + level * 5;
-    const normalPattern = fan({ ways: 5, spread: 0.2, speed: 105 + level * 4, radius: 5, interval: 0.58, baseAngle: DOWN });
-    const reversePattern = fan({ ways: 5, spread: 0.2, speed: 105 + level * 4, radius: 5, interval: 0.58, baseAngle: UP });
-    e.pattern = normalPattern;
     return {
       enemies: [e],
       encounter: {
         ...base, kind, mode: null, nextEventAt: now + 2.5,
         transitionUntil: 0, pendingMode: null, controlEpoch: 0,
-        normalPattern, reversePattern,
+        evenNextAt: Number.POSITIVE_INFINITY,
+        aimedNextAt: Number.POSITIVE_INFINITY,
+        speedSwapped: false,
       },
     };
   }
@@ -250,6 +253,9 @@ function activateReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoad
   runtime.mode = mode;
   runtime.pendingMode = null;
   runtime.transitionUntil = 0;
+  runtime.evenNextAt = world.time;
+  runtime.aimedNextAt = world.time;
+  runtime.speedSwapped = false;
   world.firingEnabled = true;
   const boss = getEnemy(world, runtime.primaryId);
   if (mode === 'swap') {
@@ -257,7 +263,6 @@ function activateReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoad
     world.ship.weapon = buildWeaponAtAngle(loadout.weapon, DOWN);
     if (boss) {
       boss.pos.y = world.bounds.y + world.bounds.h * 0.82;
-      boss.pattern = runtime.reversePattern;
     }
     runtime.notice = '上下反転';
   } else {
@@ -278,7 +283,6 @@ function beginReversaTransition(runtime: ReversaBoss, world: World, loadout: Pla
   const boss = getEnemy(world, runtime.primaryId);
   if (boss) {
     boss.pos.y = world.bounds.y + world.bounds.h * 0.16;
-    boss.pattern = runtime.normalPattern;
   }
   runtime.controlEpoch += 1;
   runtime.notice = '転換準備・弾幕停止';
@@ -287,6 +291,28 @@ function beginReversaTransition(runtime: ReversaBoss, world: World, loadout: Pla
 function reverseInput(input: ShipInput): ShipInput {
   if (input.target) return input; // ドラッグ反転は指の差分を扱える入力層で行う
   return { ...input, moveX: -input.moveX, moveY: -input.moveY };
+}
+
+function stepReversaBarrage(runtime: ReversaBoss, world: World): void {
+  const boss = getEnemy(world, runtime.primaryId);
+  if (!boss || !runtime.mode || !world.firingEnabled) return;
+
+  if (!runtime.speedSwapped && boss.hp <= boss.maxHp / 2) {
+    runtime.speedSwapped = true;
+    runtime.notice = '弾速反転';
+  }
+  const evenSpeed = runtime.speedSwapped ? REVERSA_SLOW_SPEED : REVERSA_FAST_SPEED;
+  const aimedSpeed = runtime.speedSwapped ? REVERSA_FAST_SPEED : REVERSA_SLOW_SPEED;
+
+  while (world.time >= runtime.evenNextAt) {
+    // 偶数方向なので照準線上に弾を置かず、狙われた時点から動かなければ中央の隙間を通る。
+    pushAimed(world, boss.pos, evenSpeed, 5, 6, 0.12, 'reversaEven');
+    runtime.evenNextAt += REVERSA_EVEN_INTERVAL;
+  }
+  while (world.time >= runtime.aimedNextAt) {
+    pushAimed(world, boss.pos, aimedSpeed, 4, 1, 0, 'reversaAimed');
+    runtime.aimedNextAt += REVERSA_AIMED_INTERVAL;
+  }
 }
 
 function stepReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoadout, input: ShipInput): ShipInput {
@@ -302,6 +328,7 @@ function stepReversa(runtime: ReversaBoss, world: World, loadout: PlayerLoadout,
     beginReversaTransition(runtime, world, loadout);
     return { moveX: 0, moveY: 0 };
   }
+  stepReversaBarrage(runtime, world);
   if (runtime.mode === 'invert') return reverseInput(input);
   return input;
 }
@@ -573,7 +600,7 @@ export function bossStatus(runtime: BossEncounter, world: World): string {
   if (runtime.kind === 'reversa') {
     if (runtime.transitionUntil > 0) return '転換準備・弾幕停止';
     const labels: Record<ReversaMode, string> = { swap: '上下反転', invert: '操作反転' };
-    return runtime.mode ? labels[runtime.mode] : '待機';
+    return runtime.mode ? `${labels[runtime.mode]}${runtime.speedSwapped ? '・弾速反転' : ''}` : '待機';
   }
   if (runtime.kind === 'sniper') {
     const exposed = runtime.shooters.filter((s) => world.time < s.vulnerableUntil && !!getEnemy(world, s.id)).length;
@@ -587,7 +614,12 @@ export function bossStatus(runtime: BossEncounter, world: World): string {
 export function forceBossEvent(runtime: BossEncounter, world: World): void {
   if (runtime.kind === 'normal') return;
   if (runtime.kind === 'reversa') {
-    if (!runtime.mode && runtime.transitionUntil <= 0) runtime.nextEventAt = world.time;
+    if (!runtime.mode && runtime.transitionUntil <= 0) {
+      runtime.nextEventAt = world.time;
+    } else if (runtime.mode) {
+      const boss = getEnemy(world, runtime.primaryId);
+      if (boss) boss.hp = Math.min(boss.hp, boss.maxHp * 0.49);
+    }
   } else if (runtime.kind === 'sniper') {
     for (const shooter of runtime.shooters) shooter.nextShotAt = world.time;
   } else if (runtime.kind === 'shogun') {

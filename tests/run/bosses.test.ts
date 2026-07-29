@@ -111,6 +111,43 @@ describe('特徴ボス', () => {
     expect(s.world.bullets.filter((b) => b.owner === 'enemy').length).toBeLessThan(200);
   });
 
+  it('リバーサは中央が空く偶数狙い弾と単発狙い弾を撃ち、HP半分で両者の速度を交換する', () => {
+    const s = beginSession(2);
+    s.world.ship.autoFire = false;
+    s.world.ship.invulnUntil = 1e9;
+    debugSpawnBossKind(s, 'reversa');
+    debugReversaMode(s, 'invert');
+    stepFor(s, 2.1);
+    if (s.boss?.kind !== 'reversa') throw new Error('reversa runtime expected');
+    const runtime = s.boss;
+    const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
+
+    s.world.bullets = [];
+    runtime.evenNextAt = s.world.time;
+    runtime.aimedNextAt = s.world.time;
+    stepSession(s, STILL, DT);
+    const evenBefore = s.world.bullets.filter((b) => b.style === 'reversaEven');
+    const aimedBefore = s.world.bullets.filter((b) => b.style === 'reversaAimed');
+    expect(evenBefore).toHaveLength(6);
+    expect(aimedBefore).toHaveLength(1);
+    expect(Math.hypot(evenBefore[0].vel.x, evenBefore[0].vel.y)).toBeCloseTo(180);
+    expect(Math.hypot(aimedBefore[0].vel.x, aimedBefore[0].vel.y)).toBeCloseTo(62);
+    const direct = Math.atan2(s.world.ship.pos.y - boss.pos.y, s.world.ship.pos.x - boss.pos.x);
+    const angleDistance = (angle: number) => Math.abs(Math.atan2(Math.sin(angle - direct), Math.cos(angle - direct)));
+    expect(evenBefore.every((b) => angleDistance(Math.atan2(b.vel.y, b.vel.x)) > 0.04)).toBe(true);
+
+    boss.hp = boss.maxHp * 0.49;
+    s.world.bullets = [];
+    runtime.evenNextAt = s.world.time;
+    runtime.aimedNextAt = s.world.time;
+    stepSession(s, STILL, DT);
+    const evenAfter = s.world.bullets.find((b) => b.style === 'reversaEven')!;
+    const aimedAfter = s.world.bullets.find((b) => b.style === 'reversaAimed')!;
+    expect(runtime.speedSwapped).toBe(true);
+    expect(Math.hypot(evenAfter.vel.x, evenAfter.vel.y)).toBeCloseTo(62);
+    expect(Math.hypot(aimedAfter.vel.x, aimedAfter.vel.y)).toBeCloseTo(180);
+  });
+
   it('スナイパーは3体で、高速射撃後だけ可視・攻撃可能になる', () => {
     const s = beginSession(3);
     s.world.ship.autoFire = false;
