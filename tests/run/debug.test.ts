@@ -3,7 +3,7 @@ import { beginSession } from '../../src/run/session';
 import {
   debugSpawnBoss, debugSpawnStrongBoss, debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
   debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, debugSpawnBossKind,
-  debugTriggerBossEvent, debugReversaMode, debugPriestMode, WEAPON_UPGRADES,
+  debugTriggerBossEvent, debugPriestMode, WEAPON_UPGRADES,
 } from '../../src/run/debug';
 
 describe('デバッグアクション', () => {
@@ -79,10 +79,8 @@ describe('デバッグアクション', () => {
   it('特徴ボスを差し替え、個別イベントを即時発動できる', () => {
     const s = beginSession(8);
     debugSpawnBossKind(s, 'reversa');
-    debugReversaMode(s, 'invert');
     expect(s.boss?.kind).toBe('reversa');
-    expect(s.boss?.kind === 'reversa' && s.boss.pendingMode).toBe('invert');
-    expect(s.world.firingEnabled).toBe(false);
+    expect(s.world.enemies.find((e) => e.id === s.bossId)?.pattern).not.toBeNull();
 
     debugSpawnBossKind(s, 'tank');
     const tank = s.world.enemies.find((e) => e.id === s.bossId)!;

@@ -1,8 +1,8 @@
 import { multiplierForPriestDefeats, scoreForDodged, spawnBoss, type Session } from './session';
 import { makeMob } from './content';
 import {
-  cleanupBoss, forceBossEvent, forcePriestMode, forceReversaMode,
-  type BossKind, type PriestBoss, type ReversaBoss, type ReversaMode,
+  cleanupBoss, forceBossEvent, forcePriestMode,
+  type BossKind, type PriestBoss,
 } from './bosses';
 import { WEAPON_UPGRADES, randomWeaponUpgrade, type WeaponUpgrade } from './upgrades';
 import { buildWeapon } from './weapon';
@@ -37,10 +37,6 @@ export function debugSpawnBossKind(s: Session, kind: BossKind): void {
 
 export function debugTriggerBossEvent(s: Session): void {
   if (s.boss) forceBossEvent(s.boss, s.world);
-}
-
-export function debugReversaMode(s: Session, mode: ReversaMode): void {
-  if (s.boss?.kind === 'reversa') forceReversaMode(s.boss as ReversaBoss, s.world, s.loadout, mode);
 }
 
 export function debugPriestMode(s: Session, mode: 'chase' | 'orb' | 'duel'): void {

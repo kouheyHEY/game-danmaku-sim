@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ShipInput } from '../../src/domain/entities';
 import { beginSession, chooseSpecialUpgrade, stepSession } from '../../src/run/session';
 import {
-  debugPriestMode, debugReversaMode, debugSpawnBossKind, debugTriggerBossEvent,
+  debugPriestMode, debugSpawnBossKind, debugTriggerBossEvent,
 } from '../../src/run/debug';
 import { applyBossHit, bossKindForLevel } from '../../src/run/bosses';
 import { makeBoss } from '../../src/run/content';
@@ -72,80 +72,30 @@ describe('特徴ボス', () => {
     }
   });
 
-  it('リバーサAは上下と弾方向、Bは操作を反転し、選択後は撃破まで続く', () => {
+  it('リバーサは固有イベントを持たない通常の強敵弾幕として戦う', () => {
     const s = beginSession(1);
-    s.world.ship.autoFire = true;
-    debugSpawnBossKind(s, 'reversa');
-    s.world.bullets.push({ id: 9000, pos: { x: 10, y: 10 }, vel: { x: 0, y: 0 }, radius: 4, owner: 'enemy' });
-    debugReversaMode(s, 'swap');
-    expect(s.world.bullets).toHaveLength(1); // 残弾は消さず、新規発射だけ止める
-    expect(s.world.firingEnabled).toBe(false);
-    stepFor(s, 1.5);
-    expect(s.world.bullets).toHaveLength(1);
-    stepFor(s, 0.6);
-    expect(s.world.firingEnabled).toBe(true);
-    const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
-    expect(s.world.ship.pos.y).toBeLessThan(s.world.bounds.h / 2);
-    expect(boss.pos.y).toBeGreaterThan(s.world.bounds.h / 2);
-    const normalTargetY = s.world.bounds.h * 0.3;
-    stepSession(s, { moveX: 0, moveY: 0, target: { x: s.world.bounds.w / 2, y: normalTargetY } }, DT);
-    expect(s.world.ship.pos.y).toBe(normalTargetY); // Aでもタッチ位置を鏡映しせず通常操作
-    stepFor(s, 0.3);
-    expect(s.world.bullets.some((b) => b.owner === 'player' && b.vel.y > 0)).toBe(true);
-    expect(s.world.bullets.some((b) => b.owner === 'enemy' && b.vel.y < 0)).toBe(true);
-    const reversaBullets = s.world.bullets.filter((b) => b.owner === 'enemy');
-    expect(reversaBullets.every((b) => b.radius <= 5)).toBe(true);
-    s.world.bullets = [];
-    stepFor(s, 1.2);
-    expect(s.world.bullets.filter((b) => b.owner === 'enemy').length).toBeLessThanOrEqual(15);
-
-    debugReversaMode(s, 'invert');
-    stepFor(s, 2.1);
-    const x0 = s.world.ship.pos.x;
-    stepSession(s, { moveX: 1, moveY: 0 }, 0.1);
-    expect(s.world.ship.pos.x).toBeLessThan(x0);
-    stepFor(s, 8);
-    expect(s.boss?.kind).toBe('reversa');
-    if (s.boss?.kind !== 'reversa') throw new Error('reversa runtime expected');
-    expect(s.boss.mode).toBe('invert');
-    expect(s.world.bullets.filter((b) => b.owner === 'enemy').length).toBeLessThan(200);
-  });
-
-  it('リバーサは中央が空く偶数狙い弾と単発狙い弾を撃ち、HP半分で両者の速度を交換する', () => {
-    const s = beginSession(2);
     s.world.ship.autoFire = false;
     s.world.ship.invulnUntil = 1e9;
     debugSpawnBossKind(s, 'reversa');
-    debugReversaMode(s, 'invert');
-    stepFor(s, 2.1);
-    if (s.boss?.kind !== 'reversa') throw new Error('reversa runtime expected');
-    const runtime = s.boss;
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
+    expect(boss.pattern).not.toBeNull();
+    expect(boss.maxHp).toBeGreaterThan(200);
+    expect(s.world.firingEnabled).toBe(true);
 
-    s.world.bullets = [];
-    runtime.evenNextAt = s.world.time;
-    runtime.aimedNextAt = s.world.time;
-    stepSession(s, STILL, DT);
-    const evenBefore = s.world.bullets.filter((b) => b.style === 'reversaEven');
-    const aimedBefore = s.world.bullets.filter((b) => b.style === 'reversaAimed');
-    expect(evenBefore).toHaveLength(6);
-    expect(aimedBefore).toHaveLength(1);
-    expect(Math.hypot(evenBefore[0].vel.x, evenBefore[0].vel.y)).toBeCloseTo(180);
-    expect(Math.hypot(aimedBefore[0].vel.x, aimedBefore[0].vel.y)).toBeCloseTo(62);
-    const direct = Math.atan2(s.world.ship.pos.y - boss.pos.y, s.world.ship.pos.x - boss.pos.x);
-    const angleDistance = (angle: number) => Math.abs(Math.atan2(Math.sin(angle - direct), Math.cos(angle - direct)));
-    expect(evenBefore.every((b) => angleDistance(Math.atan2(b.vel.y, b.vel.x)) > 0.04)).toBe(true);
+    const x0 = s.world.ship.pos.x;
+    stepSession(s, { moveX: 1, moveY: 0 }, 0.1);
+    expect(s.world.ship.pos.x).toBeGreaterThan(x0);
 
-    boss.hp = boss.maxHp * 0.49;
-    s.world.bullets = [];
-    runtime.evenNextAt = s.world.time;
-    runtime.aimedNextAt = s.world.time;
+    const beforeEvent = { hp: boss.hp, pos: { ...s.world.ship.pos } };
+    debugTriggerBossEvent(s);
+    expect(boss.hp).toBe(beforeEvent.hp);
+    expect(s.world.ship.pos).toEqual(beforeEvent.pos);
+    expect(s.world.firingEnabled).toBe(true);
+
+    stepFor(s, 1);
     stepSession(s, STILL, DT);
-    const evenAfter = s.world.bullets.find((b) => b.style === 'reversaEven')!;
-    const aimedAfter = s.world.bullets.find((b) => b.style === 'reversaAimed')!;
-    expect(runtime.speedSwapped).toBe(true);
-    expect(Math.hypot(evenAfter.vel.x, evenAfter.vel.y)).toBeCloseTo(62);
-    expect(Math.hypot(aimedAfter.vel.x, aimedAfter.vel.y)).toBeCloseTo(180);
+    expect(s.world.bullets.some((b) => b.owner === 'enemy')).toBe(true);
+    expect(s.world.bullets.every((b) => b.style === undefined || b.style === 'normal')).toBe(true);
   });
 
   it('スナイパーは3体で、高速射撃後だけ可視・攻撃可能になる', () => {
