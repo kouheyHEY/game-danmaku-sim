@@ -13,6 +13,7 @@ const SHIP = 0x4ea1ff;
 const PLAYER_BULLET_VISUAL_MAX = 7;
 const BULLET_COLORS = {
   normal: ENEMY_BULLET,
+  reversa: 0xf0abfc,
   sniper: 0xff6b6b,
   wave: 0xf8fafc,
   orb: 0xc084fc,

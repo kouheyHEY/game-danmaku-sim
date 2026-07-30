@@ -8,6 +8,10 @@ import type { PlayerLoadout } from './loadout';
 import { buildWeaponAtAngle, type WeaponSpec } from './weapon';
 
 const DOWN = Math.PI / 2;
+const REVERSA_INTERVAL = 0.52;
+const REVERSA_WAYS = 5;
+const REVERSA_TURN_DELAY = 2;
+const REVERSA_TURN_DURATION = 1.4;
 export const BOSS_ORDER = ['reversa', 'sniper', 'shogun', 'tank', 'priest'] as const;
 export type FeatureBossKind = typeof BOSS_ORDER[number];
 export type BossKind = 'normal' | FeatureBossKind;
@@ -26,6 +30,8 @@ export interface NormalBoss extends BossBase {
 
 export interface ReversaBoss extends BossBase {
   kind: 'reversa';
+  nextShotAt: number;
+  reversing: boolean;
 }
 
 export interface SniperBoss extends BossBase {
@@ -141,7 +147,9 @@ export function makeBossEncounter(
     const e = makeStrongBoss(primaryId, level, bounds, rng);
     e.role = 'boss';
     e.hitRadius = strong ? 18 : 16;
-    return { enemies: [e], encounter: { ...base, kind } };
+    e.pattern = null;
+    e.vel.x = 0;
+    return { enemies: [e], encounter: { ...base, kind, nextShotAt: now + 0.6, reversing: false } };
   }
 
   if (kind === 'sniper') {
@@ -222,6 +230,64 @@ function pushAimed(world: World, source: Vec2, speed: number, radius: number, wa
   for (let i = 0; i < ways; i++) {
     const angle = base + (i - (ways - 1) / 2) * spread;
     pushBullet(world, source, angle, speed, radius, style, extra);
+  }
+}
+
+function markReversaBulletForTurn(bullet: Bullet, turnAt: number): void {
+  bullet.reversaBaseVel = { ...bullet.vel };
+  bullet.reversaTurnAt = turnAt;
+}
+
+function activateReversaTurn(runtime: ReversaBoss, world: World): void {
+  if (runtime.reversing) return;
+  runtime.reversing = true;
+  runtime.notice = 'ベクトル反転';
+  for (const bullet of world.bullets) {
+    if (bullet.owner === 'enemy' && bullet.style === 'reversa') {
+      markReversaBulletForTurn(bullet, world.time);
+    }
+  }
+}
+
+function updateReversaVectors(runtime: ReversaBoss, world: World): void {
+  const boss = getEnemy(world, runtime.primaryId);
+  for (const bullet of world.bullets) {
+    if (!bullet.reversaBaseVel || bullet.reversaTurnAt === undefined) continue;
+    const p = clamp((world.time - bullet.reversaTurnAt) / REVERSA_TURN_DURATION, 0, 1);
+    const eased = p * p * (3 - 2 * p);
+    const factor = 1 - eased * 2;
+    bullet.vel = {
+      x: bullet.reversaBaseVel.x * factor,
+      y: bullet.reversaBaseVel.y * factor,
+    };
+    if (
+      boss &&
+      p >= 1 &&
+      Math.hypot(bullet.pos.x - boss.pos.x, bullet.pos.y - boss.pos.y) <= boss.hitRadius + bullet.radius + 8
+    ) {
+      bullet.expired = true;
+    }
+  }
+}
+
+function stepReversa(runtime: ReversaBoss, world: World, level: number): void {
+  const boss = getEnemy(world, runtime.primaryId);
+  if (!boss) return;
+  if (!runtime.reversing && boss.hp <= boss.maxHp / 2) activateReversaTurn(runtime, world);
+  if (runtime.reversing) updateReversaVectors(runtime, world);
+
+  const interval = Math.max(0.38, REVERSA_INTERVAL - level * 0.006);
+  const ways = REVERSA_WAYS + Math.min(2, Math.floor(level / 6));
+  while (world.time >= runtime.nextShotAt) {
+    for (let i = 0; i < ways; i++) {
+      const angle = Math.PI * (0.16 + world.rng.next() * 0.68);
+      const speed = 108 + level * 3 + world.rng.next() * 52;
+      pushBullet(world, boss.pos, angle, speed, 5, 'reversa');
+      if (runtime.reversing) {
+        markReversaBulletForTurn(world.bullets[world.bullets.length - 1], world.time + REVERSA_TURN_DELAY);
+      }
+    }
+    runtime.nextShotAt += interval;
   }
 }
 
@@ -446,7 +512,8 @@ function stepPriest(runtime: PriestBoss, world: World, loadout: PlayerLoadout, d
 
 export function prepareBossStep(runtime: BossEncounter, world: World, loadout: PlayerLoadout, input: ShipInput, dt: number, level: number): ShipInput {
   if (runtime.kind === 'normal') return input;
-  if (runtime.kind === 'sniper') stepSniper(runtime, world, level);
+  if (runtime.kind === 'reversa') stepReversa(runtime, world, level);
+  else if (runtime.kind === 'sniper') stepSniper(runtime, world, level);
   else if (runtime.kind === 'shogun') stepShogun(runtime, world, level);
   else if (runtime.kind === 'tank') stepTank(runtime, world, level);
   else if (runtime.kind === 'priest') stepPriest(runtime, world, loadout, dt, level);
@@ -461,10 +528,12 @@ export function applyBossHit(runtime: BossEncounter, world: World, enemyId: numb
 }
 
 export function finishBossStep(runtime: BossEncounter, world: World, loadout: PlayerLoadout, dt: number): void {
-  void runtime;
-  void world;
   void loadout;
   void dt;
+  if (runtime.kind === 'reversa') {
+    const boss = getEnemy(world, runtime.primaryId);
+    if (boss && boss.hp <= boss.maxHp / 2) activateReversaTurn(runtime, world);
+  }
 }
 
 export function bossDefeated(runtime: BossEncounter, world: World): boolean {
@@ -487,7 +556,7 @@ export function takeBossNotice(runtime: BossEncounter): string | null {
 
 export function bossStatus(runtime: BossEncounter, world: World): string {
   if (runtime.kind === 'normal') return '通常弾幕';
-  if (runtime.kind === 'reversa') return '通常強敵弾幕';
+  if (runtime.kind === 'reversa') return runtime.reversing ? '反転弾幕' : 'ランダム弾幕';
   if (runtime.kind === 'sniper') {
     const exposed = runtime.shooters.filter((s) => world.time < s.vulnerableUntil && !!getEnemy(world, s.id)).length;
     return `露出 ${exposed}/${runtime.shooters.filter((s) => !!getEnemy(world, s.id)).length}`;
@@ -499,7 +568,11 @@ export function bossStatus(runtime: BossEncounter, world: World): string {
 
 export function forceBossEvent(runtime: BossEncounter, world: World): void {
   if (runtime.kind === 'normal') return;
-  if (runtime.kind === 'sniper') {
+  if (runtime.kind === 'reversa') {
+    const boss = getEnemy(world, runtime.primaryId);
+    if (boss) boss.hp = Math.min(boss.hp, boss.maxHp * 0.49);
+    activateReversaTurn(runtime, world);
+  } else if (runtime.kind === 'sniper') {
     for (const shooter of runtime.shooters) shooter.nextShotAt = world.time;
   } else if (runtime.kind === 'shogun') {
     const wall = getEnemy(world, runtime.wallId);

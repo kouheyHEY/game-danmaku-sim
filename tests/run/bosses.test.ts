@@ -72,30 +72,41 @@ describe('特徴ボス', () => {
     }
   });
 
-  it('リバーサは固有イベントを持たない通常の強敵弾幕として戦う', () => {
+  it('リバーサは前半にランダム弾を撃ち、HP半分で弾速を滑らかに逆転する', () => {
     const s = beginSession(1);
     s.world.ship.autoFire = false;
     s.world.ship.invulnUntil = 1e9;
     debugSpawnBossKind(s, 'reversa');
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
-    expect(boss.pattern).not.toBeNull();
+    expect(boss.pattern).toBeNull();
     expect(boss.maxHp).toBeGreaterThan(200);
-    expect(s.world.firingEnabled).toBe(true);
-
-    const x0 = s.world.ship.pos.x;
-    stepSession(s, { moveX: 1, moveY: 0 }, 0.1);
-    expect(s.world.ship.pos.x).toBeGreaterThan(x0);
-
-    const beforeEvent = { hp: boss.hp, pos: { ...s.world.ship.pos } };
-    debugTriggerBossEvent(s);
-    expect(boss.hp).toBe(beforeEvent.hp);
-    expect(s.world.ship.pos).toEqual(beforeEvent.pos);
-    expect(s.world.firingEnabled).toBe(true);
-
     stepFor(s, 1);
+    const opening = s.world.bullets.filter((b) => b.style === 'reversa');
+    expect(opening.length).toBeGreaterThanOrEqual(5);
+    expect(opening.every((b) => b.vel.y > 0)).toBe(true);
+    expect(new Set(opening.map((b) => Math.atan2(b.vel.y, b.vel.x).toFixed(3))).size).toBeGreaterThan(2);
+
+    const tracked = opening[0];
+    s.world.bullets = [tracked];
+    if (s.boss?.kind !== 'reversa') throw new Error('reversa runtime expected');
+    s.boss.nextShotAt = Number.POSITIVE_INFINITY;
+    boss.hp = boss.maxHp * 0.49;
     stepSession(s, STILL, DT);
-    expect(s.world.bullets.some((b) => b.owner === 'enemy')).toBe(true);
-    expect(s.world.bullets.every((b) => b.style === undefined || b.style === 'normal')).toBe(true);
+    expect(s.boss.reversing).toBe(true);
+    expect(tracked.reversaTurnAt).toBeDefined();
+    const base = { ...tracked.reversaBaseVel! };
+    const baseSpeed = Math.hypot(base.x, base.y);
+
+    stepFor(s, 0.7);
+    expect(Math.hypot(tracked.vel.x, tracked.vel.y)).toBeLessThan(baseSpeed * 0.08);
+    stepFor(s, 0.7);
+    expect(tracked.vel.x * base.x + tracked.vel.y * base.y).toBeLessThan(0);
+    expect(Math.hypot(tracked.vel.x, tracked.vel.y)).toBeCloseTo(baseSpeed, 0);
+
+    s.boss.nextShotAt = s.world.time;
+    stepSession(s, STILL, DT);
+    const delayed = s.world.bullets.find((b) => b !== tracked && b.style === 'reversa')!;
+    expect(delayed.reversaTurnAt).toBeGreaterThan(s.world.time + 1.9);
   });
 
   it('スナイパーは3体で、高速射撃後だけ可視・攻撃可能になる', () => {

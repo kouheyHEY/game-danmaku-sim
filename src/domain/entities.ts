@@ -43,8 +43,10 @@ export interface Bullet {
   bouncesRemaining?: number; // 画面端で反射できる残り回数
   bounceSpeedUp?: number; // 反射時の速度倍率
   maxBounceSpeed?: number; // この速度へ達したら反射を終える
+  reversaBaseVel?: Vec2; // リバーサ反転弾の、反転前の速度ベクトル
+  reversaTurnAt?: number; // この時刻から徐々に速度ベクトルを反転する
   expired?: boolean; // 特殊寿命を終え、次の整理で消える
-  style?: 'normal' | 'sniper' | 'wave' | 'orb' | 'side' | 'tank';
+  style?: 'normal' | 'reversa' | 'sniper' | 'wave' | 'orb' | 'side' | 'tank';
 }
 
 /** プレイヤーの1フレーム入力。方向(-1..1)・発射・タッチ目標位置。 */
