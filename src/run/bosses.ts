@@ -10,8 +10,8 @@ import { buildWeaponAtAngle, type WeaponSpec } from './weapon';
 const DOWN = Math.PI / 2;
 const REVERSA_INTERVAL = 0.52;
 const REVERSA_WAYS = 5;
-const REVERSA_TURN_DELAY = 2;
 const REVERSA_TURN_DURATION = 1.4;
+const REVERSA_INCOMING_INTERVAL = 0.18;
 export const BOSS_ORDER = ['reversa', 'sniper', 'shogun', 'tank', 'priest'] as const;
 export type FeatureBossKind = typeof BOSS_ORDER[number];
 export type BossKind = 'normal' | FeatureBossKind;
@@ -241,6 +241,7 @@ function markReversaBulletForTurn(bullet: Bullet, turnAt: number): void {
 function activateReversaTurn(runtime: ReversaBoss, world: World): void {
   if (runtime.reversing) return;
   runtime.reversing = true;
+  runtime.nextShotAt = world.time + 0.3;
   runtime.notice = 'ベクトル反転';
   for (const bullet of world.bullets) {
     if (bullet.owner === 'enemy' && bullet.style === 'reversa') {
@@ -260,21 +261,42 @@ function updateReversaVectors(runtime: ReversaBoss, world: World): void {
       x: bullet.reversaBaseVel.x * factor,
       y: bullet.reversaBaseVel.y * factor,
     };
-    if (
-      boss &&
-      p >= 1 &&
-      Math.hypot(bullet.pos.x - boss.pos.x, bullet.pos.y - boss.pos.y) <= boss.hitRadius + bullet.radius + 8
-    ) {
+  }
+  if (!boss) return;
+  for (const bullet of world.bullets) {
+    if (bullet.owner !== 'enemy' || bullet.style !== 'reversa') continue;
+    const toBoss = { x: boss.pos.x - bullet.pos.x, y: boss.pos.y - bullet.pos.y };
+    const movingToBoss = toBoss.x * bullet.vel.x + toBoss.y * bullet.vel.y > 0;
+    if (movingToBoss && Math.hypot(toBoss.x, toBoss.y) <= boss.hitRadius + bullet.radius + 8) {
       bullet.expired = true;
     }
   }
+}
+
+function spawnReversaIncoming(world: World, boss: Enemy, level: number): void {
+  const radius = 5;
+  const source = {
+    x: world.bounds.x + radius + world.rng.next() * (world.bounds.w - radius * 2),
+    y: world.bounds.y + world.bounds.h + radius + 8,
+  };
+  const angle = Math.atan2(boss.pos.y - source.y, boss.pos.x - source.x);
+  const speed = 105 + level * 2.5 + world.rng.next() * 48;
+  pushBullet(world, source, angle, speed, radius, 'reversa');
 }
 
 function stepReversa(runtime: ReversaBoss, world: World, level: number): void {
   const boss = getEnemy(world, runtime.primaryId);
   if (!boss) return;
   if (!runtime.reversing && boss.hp <= boss.maxHp / 2) activateReversaTurn(runtime, world);
-  if (runtime.reversing) updateReversaVectors(runtime, world);
+  if (runtime.reversing) {
+    updateReversaVectors(runtime, world);
+    const incomingInterval = Math.max(0.12, REVERSA_INCOMING_INTERVAL - level * 0.002);
+    while (world.time >= runtime.nextShotAt) {
+      spawnReversaIncoming(world, boss, level);
+      runtime.nextShotAt += incomingInterval;
+    }
+    return;
+  }
 
   const interval = Math.max(0.38, REVERSA_INTERVAL - level * 0.006);
   const ways = REVERSA_WAYS + Math.min(2, Math.floor(level / 6));
@@ -283,9 +305,6 @@ function stepReversa(runtime: ReversaBoss, world: World, level: number): void {
       const angle = Math.PI * (0.16 + world.rng.next() * 0.68);
       const speed = 108 + level * 3 + world.rng.next() * 52;
       pushBullet(world, boss.pos, angle, speed, 5, 'reversa');
-      if (runtime.reversing) {
-        markReversaBulletForTurn(world.bullets[world.bullets.length - 1], world.time + REVERSA_TURN_DELAY);
-      }
     }
     runtime.nextShotAt += interval;
   }
