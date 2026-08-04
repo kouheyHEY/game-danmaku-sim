@@ -6,6 +6,7 @@ import { formatMultiplier, formatScore } from './numberFormat';
 
 const BOSS = 0xff5d73;
 const STRONG_BOSS = 0xc084fc;
+const PRIEST = 0x34d399;
 const ENEMY_BULLET = 0xffd166;
 const ENEMY_BULLET_OUTLINE = 0x5c2d10;
 const PLAYER_BULLET = 0x67e8f9;
@@ -150,12 +151,14 @@ export class SessionRenderer {
       if (e.visible === false) continue;
       const inBoss = !!session.boss?.enemyIds.includes(e.id);
       const strong = session.bossIsStrong && inBoss;
-      const color = e.role === 'guard' ? 0x94a3b8 : e.role === 'sniper' ? 0x67e8f9 : strong ? STRONG_BOSS : BOSS;
-      if (strong) this.bossG.circle(e.pos.x, e.pos.y, e.hitRadius + 8).stroke({ color: STRONG_BOSS, width: 4, alpha: 0.55 });
-      this.bossG.circle(e.pos.x, e.pos.y, e.hitRadius).fill({ color, alpha: e.targetable === false ? 0.34 : 1 });
-      const bw = Math.max(24, e.hitRadius * 2.4);
+      const priest = session.boss?.kind === 'priest' && e.id === session.boss.primaryId;
+      const color = priest ? PRIEST : e.role === 'guard' ? 0x94a3b8 : e.role === 'sniper' ? 0x67e8f9 : strong ? STRONG_BOSS : BOSS;
+      const visualRadius = priest ? 13 : e.hitRadius;
+      if (strong) this.bossG.circle(e.pos.x, e.pos.y, visualRadius + 8).stroke({ color, width: 4, alpha: 0.55 });
+      this.bossG.circle(e.pos.x, e.pos.y, visualRadius).fill({ color, alpha: e.targetable === false ? 0.34 : 1 });
+      const bw = Math.max(24, visualRadius * 2.4);
       const bx = e.pos.x - bw / 2;
-      const by = e.pos.y - e.hitRadius - 10;
+      const by = e.pos.y - visualRadius - 10;
       this.bossG.rect(bx, by, bw, 4).fill({ color: 0x33384a });
       this.bossG.rect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 4).fill({ color });
     }

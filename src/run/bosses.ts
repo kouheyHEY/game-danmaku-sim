@@ -12,6 +12,9 @@ const REVERSA_INTERVAL = 0.52;
 const REVERSA_WAYS = 5;
 const REVERSA_TURN_DURATION = 1.4;
 const REVERSA_INCOMING_INTERVAL = 0.18;
+const PRIEST_HP_MULTIPLIER = 3.6;
+const PRIEST_ORB_HP_RATIO = 0.5;
+const PRIEST_DUEL_HP_RATIO = 0.25;
 export const BOSS_ORDER = ['reversa', 'sniper', 'shogun', 'tank', 'priest'] as const;
 export type FeatureBossKind = typeof BOSS_ORDER[number];
 export type BossKind = 'normal' | FeatureBossKind;
@@ -61,10 +64,12 @@ export interface TankBoss extends BossBase {
 export interface PriestBoss extends BossBase {
   kind: 'priest';
   mode: 'chase' | 'orb' | 'duel';
-  switchAt: number;
   nextShotAt: number;
   nextCheckAt: number;
   copiedPattern: Pattern | null;
+  dodgeDirection: -1 | 1;
+  nextDodgeAt: number;
+  dodgeUntil: number;
 }
 
 export type BossEncounter = NormalBoss | ReversaBoss | SniperBoss | ShogunBoss | TankBoss | PriestBoss;
@@ -195,12 +200,13 @@ export function makeBossEncounter(
     return { enemies: [e], encounter: { ...base, kind, stage: 0, nextShotAt: now + 1, rebound: false, recoverUntil: 0 } };
   }
 
-  const priest = enemy(primaryId, { x: cx, y: top }, Math.round(hp * 1.6), strong ? 17 : 14);
+  const priest = enemy(primaryId, { x: cx, y: top }, Math.round(hp * PRIEST_HP_MULTIPLIER), 10);
   return {
     enemies: [priest],
     encounter: {
-      ...base, kind: 'priest', mode: 'chase', switchAt: now + 6, nextShotAt: now + 0.8,
-      nextCheckAt: now + 0.8, copiedPattern: null,
+      ...base, kind: 'priest', mode: 'chase', nextShotAt: now + 0.65,
+      nextCheckAt: now + 0.65, copiedPattern: null,
+      dodgeDirection: 1, nextDodgeAt: now, dodgeUntil: now,
     },
   };
 }
@@ -454,71 +460,115 @@ function activatePriestDuel(runtime: PriestBoss, world: World, loadout: PlayerLo
   runtime.copiedPattern = buildWeaponAtAngle(cappedCopy(loadout.weapon), DOWN);
   const boss = getEnemy(world, runtime.primaryId);
   if (boss) boss.hitRadius = Math.min(boss.hitRadius, 10);
+  runtime.nextDodgeAt = world.time;
+  runtime.dodgeUntil = world.time;
   clearEnemyBullets(world);
   runtime.notice = '弾幕模倣・決闘';
 }
 
-export function forcePriestMode(runtime: PriestBoss, world: World, loadout: PlayerLoadout, mode: 'chase' | 'orb' | 'duel'): void {
-  if (mode === 'duel') {
-    const boss = getEnemy(world, runtime.primaryId);
-    if (boss) boss.hp = Math.min(boss.hp, boss.maxHp * 0.25);
-    activatePriestDuel(runtime, world, loadout);
-    return;
-  }
+function setPriestMode(runtime: PriestBoss, world: World, mode: 'chase' | 'orb'): void {
+  if (runtime.mode === mode) return;
   runtime.mode = mode;
-  runtime.switchAt = world.time + 6;
   runtime.nextShotAt = world.time;
   runtime.nextCheckAt = world.time;
   runtime.notice = mode === 'chase' ? '追跡祈祷' : '加速する祈り';
 }
 
+export function forcePriestMode(runtime: PriestBoss, world: World, loadout: PlayerLoadout, mode: 'chase' | 'orb' | 'duel'): void {
+  const boss = getEnemy(world, runtime.primaryId);
+  if (mode === 'duel') {
+    if (boss) boss.hp = Math.min(boss.hp, boss.maxHp * PRIEST_DUEL_HP_RATIO);
+    activatePriestDuel(runtime, world, loadout);
+    return;
+  }
+  if (boss) {
+    boss.hp = mode === 'chase'
+      ? Math.max(boss.hp, boss.maxHp * 0.75)
+      : clamp(boss.hp, boss.maxHp * (PRIEST_DUEL_HP_RATIO + 0.01), boss.maxHp * (PRIEST_ORB_HP_RATIO - 0.01));
+  }
+  runtime.mode = mode;
+  runtime.nextShotAt = world.time;
+  runtime.nextCheckAt = world.time;
+  runtime.notice = mode === 'chase' ? '追跡祈祷' : '加速する祈り';
+}
+
+function priestDuelMovement(runtime: PriestBoss, world: World, boss: Enemy): void {
+  const left = world.bounds.x + 24;
+  const right = world.bounds.x + world.bounds.w - 24;
+  const danger = world.bullets.filter((b) =>
+    b.owner === 'player' && Math.hypot(b.pos.x - boss.pos.x, b.pos.y - boss.pos.y) < 240,
+  );
+
+  if (world.time >= runtime.nextDodgeAt) {
+    const wallDistance = Math.min(boss.pos.x - left, right - boss.pos.x);
+    if (boss.pos.x - left < 42) runtime.dodgeDirection = 1;
+    else if (right - boss.pos.x < 42) runtime.dodgeDirection = -1;
+    else if (danger.length > 0) {
+      const score = (direction: -1 | 1): number => {
+        const candidateX = clamp(boss.pos.x + direction * 38, left, right);
+        let clearance = 240;
+        for (const bullet of danger) {
+          const projectedX = bullet.pos.x + bullet.vel.x * 0.22;
+          const projectedY = bullet.pos.y + bullet.vel.y * 0.22;
+          clearance = Math.min(clearance, Math.hypot(candidateX - projectedX, boss.pos.y - projectedY));
+        }
+        return clearance + Math.min(candidateX - left, right - candidateX) * 0.2;
+      };
+      runtime.dodgeDirection = score(-1) > score(1) ? -1 : 1;
+    }
+    runtime.dodgeUntil = world.time + (wallDistance < 42 && danger.length > 0 ? 0.24 : 0.13);
+    runtime.nextDodgeAt = world.time + (danger.length > 0 ? 0.18 : 0.34);
+  }
+
+  let vx = (world.bounds.x + world.bounds.w / 2 - boss.pos.x) * 0.12;
+  let vy = (world.bounds.y + world.bounds.h * 0.19 - boss.pos.y) * 0.32;
+  for (const bullet of danger) {
+    const dx = boss.pos.x - bullet.pos.x;
+    const dy = boss.pos.y - bullet.pos.y;
+    const d2 = Math.max(144, dx * dx + dy * dy);
+    vx += (dx / d2) * 5200;
+    vy += (dy / d2) * 3600;
+  }
+  if (world.time < runtime.dodgeUntil) vx += runtime.dodgeDirection * 150;
+  if (boss.pos.x - left < 24) vx = Math.max(vx, 150);
+  if (right - boss.pos.x < 24) vx = Math.min(vx, -150);
+  const len = Math.max(1, Math.hypot(vx, vy));
+  const speed = danger.length > 0 ? 138 : 82;
+  boss.vel = { x: (vx / len) * speed, y: (vy / len) * speed };
+  boss.pos.y = clamp(boss.pos.y, world.bounds.y + 42, world.bounds.y + world.bounds.h * 0.44);
+}
+
 function stepPriest(runtime: PriestBoss, world: World, loadout: PlayerLoadout, dt: number, level: number): void {
   const boss = getEnemy(world, runtime.primaryId);
   if (!boss) return;
-  if (runtime.mode !== 'duel' && boss.hp <= boss.maxHp * 0.25) activatePriestDuel(runtime, world, loadout);
+  const hpRatio = boss.hp / boss.maxHp;
+  if (hpRatio <= PRIEST_DUEL_HP_RATIO) {
+    if (runtime.mode !== 'duel') activatePriestDuel(runtime, world, loadout);
+  } else if (hpRatio <= PRIEST_ORB_HP_RATIO) setPriestMode(runtime, world, 'orb');
+  else setPriestMode(runtime, world, 'chase');
 
   if (runtime.mode === 'duel') {
-    const danger = world.bullets.filter((b) => b.owner === 'player' && Math.hypot(b.pos.x - boss.pos.x, b.pos.y - boss.pos.y) < 190);
-    let vx = (world.bounds.x + world.bounds.w / 2 - boss.pos.x) * 0.2;
-    let vy = (world.bounds.y + world.bounds.h * 0.2 - boss.pos.y) * 0.2;
-    for (const bullet of danger) {
-      const dx = boss.pos.x - bullet.pos.x;
-      const dy = boss.pos.y - bullet.pos.y;
-      const d2 = Math.max(100, dx * dx + dy * dy);
-      vx += (dx / d2) * 9000;
-      vy += (dy / d2) * 9000;
-    }
-    const len = Math.max(1, Math.hypot(vx, vy));
-    boss.vel = { x: (vx / len) * 92, y: (vy / len) * 92 };
-    boss.pos.y = clamp(boss.pos.y, world.bounds.y + 50, world.bounds.y + world.bounds.h * 0.44);
+    priestDuelMovement(runtime, world, boss);
     const spawns = runtime.copiedPattern?.emit(world.time, dt, boss.pos, world.rng, world.ship.pos) ?? [];
     for (const spawn of spawns) pushBullet(world, spawn.pos, Math.atan2(spawn.vel.y, spawn.vel.x), Math.hypot(spawn.vel.x, spawn.vel.y), spawn.radius);
     return;
-  }
-
-  if (world.time >= runtime.switchAt) {
-    runtime.mode = runtime.mode === 'chase' ? 'orb' : 'chase';
-    runtime.switchAt = world.time + 6;
-    if (runtime.mode === 'chase') runtime.nextShotAt = world.time;
-    else runtime.nextCheckAt = world.time;
-    runtime.notice = runtime.mode === 'chase' ? '追跡祈祷' : '加速する祈り';
   }
 
   if (runtime.mode === 'chase') {
     const dx = world.ship.pos.x - boss.pos.x;
     const dy = world.ship.pos.y - boss.pos.y;
     const len = Math.max(1, Math.hypot(dx, dy));
-    boss.vel = { x: (dx / len) * 34, y: (dy / len) * 34 };
+    boss.vel = { x: (dx / len) * 72, y: (dy / len) * 72 };
     while (world.time >= runtime.nextShotAt) {
-      pushAimed(world, boss.pos, 72 + level * 2, 6, 1, 0, 'normal');
-      runtime.nextShotAt += 0.48;
+      pushAimed(world, boss.pos, 118 + level * 3, 6, 1, 0, 'normal');
+      runtime.nextShotAt += 0.44;
     }
   } else {
-    boss.vel = { x: 26, y: 0 };
+    boss.vel = { x: Math.sign(boss.vel.x || 1) * 58, y: 0 };
     while (world.time >= runtime.nextCheckAt) {
       const count = world.bullets.filter((b) => b.owner === 'enemy').length;
       if (count <= 18) {
-        pushAimed(world, boss.pos, 68, 10, 1, 0, 'orb', {
+        pushAimed(world, boss.pos, 108 + level * 2, 10, 1, 0, 'orb', {
           bouncesRemaining: 99,
           bounceSpeedUp: 1.22,
           maxBounceSpeed: 260,
@@ -601,9 +651,9 @@ export function forceBossEvent(runtime: BossEncounter, world: World): void {
     const boss = getEnemy(world, runtime.primaryId);
     if (boss) boss.hp = Math.max(1, boss.hp - boss.maxHp * 0.21);
   } else if (runtime.kind === 'priest') {
-    if (runtime.mode === 'duel') return;
-    runtime.mode = runtime.mode === 'chase' ? 'orb' : 'chase';
-    runtime.switchAt = world.time + 6;
-    runtime.notice = runtime.mode === 'chase' ? '追跡祈祷' : '加速する祈り';
+    const boss = getEnemy(world, runtime.primaryId);
+    if (!boss || runtime.mode === 'duel') return;
+    if (runtime.mode === 'chase') boss.hp = Math.min(boss.hp, boss.maxHp * (PRIEST_ORB_HP_RATIO - 0.01));
+    else boss.hp = Math.min(boss.hp, boss.maxHp * (PRIEST_DUEL_HP_RATIO - 0.01));
   }
 }

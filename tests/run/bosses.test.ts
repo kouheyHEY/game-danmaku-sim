@@ -215,9 +215,19 @@ describe('特徴ボス', () => {
     const s = beginSession(6);
     s.world.ship.autoFire = false;
     debugSpawnBossKind(s, 'priest');
+    const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
+    expect(boss.maxHp).toBeGreaterThanOrEqual(360);
+    expect(boss.hitRadius).toBe(10);
+    if (s.boss?.kind !== 'priest') throw new Error('priest runtime expected');
+
+    boss.hp = boss.maxHp * 0.49;
+    stepSession(s, STILL, DT);
+    expect(s.boss.mode).toBe('orb');
+    expect(Math.abs(boss.vel.x)).toBeGreaterThanOrEqual(58);
     debugPriestMode(s, 'orb');
     stepSession(s, STILL, DT);
     const orb = s.world.bullets.find((b) => b.style === 'orb')!;
+    expect(Math.hypot(orb.vel.x, orb.vel.y)).toBeGreaterThanOrEqual(108);
     expect(orb.bouncesRemaining).toBeGreaterThan(1);
     expect(orb.bounceSpeedUp).toBeGreaterThan(1);
     const bounces0 = orb.bouncesRemaining!;
@@ -232,10 +242,8 @@ describe('特徴ボス', () => {
     expect(s.world.bullets).not.toContain(orb); // 上限速度へ達した時点で消える
 
     debugPriestMode(s, 'duel');
-    if (s.boss?.kind !== 'priest') throw new Error('priest runtime expected');
     expect(s.boss.mode).toBe('duel');
     expect(s.boss.copiedPattern).not.toBeNull();
-    const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
     expect(boss.hitRadius).toBeLessThanOrEqual(10);
     const hp0 = boss.hp;
     applyBossHit(s.boss, s.world, boss.id, 10);
@@ -245,5 +253,18 @@ describe('特徴ボス', () => {
     expect(copied.length).toBeGreaterThan(0);
     expect(copied.length).toBeLessThanOrEqual(5);
     expect(copied.every((b) => b.radius <= 4)).toBe(true);
+
+    s.world.bullets = [{
+      id: s.world.nextId++,
+      pos: { x: 25, y: boss.pos.y + 70 },
+      vel: { x: 0, y: -300 },
+      radius: 2,
+      owner: 'player',
+    }];
+    boss.pos.x = 25;
+    s.boss.nextDodgeAt = s.world.time;
+    stepSession(s, STILL, DT);
+    expect(s.boss.dodgeDirection).toBe(1);
+    expect(boss.vel.x).toBeGreaterThan(0);
   });
 });
