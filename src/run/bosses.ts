@@ -12,9 +12,11 @@ const REVERSA_INTERVAL = 0.52;
 const REVERSA_WAYS = 5;
 const REVERSA_TURN_DURATION = 1.4;
 const REVERSA_INCOMING_INTERVAL = 0.18;
-const PRIEST_HP_MULTIPLIER = 3.6;
-const PRIEST_ORB_HP_RATIO = 0.5;
+const PRIEST_HP_MULTIPLIER = 4.2;
+const PRIEST_ORB_HP_RATIO = 0.65;
 const PRIEST_DUEL_HP_RATIO = 0.25;
+const PRIEST_RADIAL_WAYS = 36;
+const PRIEST_RADIAL_INTERVAL = 1.8;
 export const BOSS_ORDER = ['reversa', 'sniper', 'shogun', 'tank', 'priest'] as const;
 export type FeatureBossKind = typeof BOSS_ORDER[number];
 export type BossKind = 'normal' | FeatureBossKind;
@@ -66,6 +68,7 @@ export interface PriestBoss extends BossBase {
   mode: 'chase' | 'orb' | 'duel';
   nextShotAt: number;
   nextCheckAt: number;
+  orbAngle: number;
   copiedPattern: Pattern | null;
   dodgeDirection: -1 | 1;
   nextDodgeAt: number;
@@ -205,7 +208,7 @@ export function makeBossEncounter(
     enemies: [priest],
     encounter: {
       ...base, kind: 'priest', mode: 'chase', nextShotAt: now + 0.65,
-      nextCheckAt: now + 0.65, copiedPattern: null,
+      nextCheckAt: now + 0.65, orbAngle: 0, copiedPattern: null,
       dodgeDirection: 1, nextDodgeAt: now, dodgeUntil: now,
     },
   };
@@ -471,7 +474,7 @@ function setPriestMode(runtime: PriestBoss, world: World, mode: 'chase' | 'orb')
   runtime.mode = mode;
   runtime.nextShotAt = world.time;
   runtime.nextCheckAt = world.time;
-  runtime.notice = mode === 'chase' ? '追跡祈祷' : '加速する祈り';
+  runtime.notice = mode === 'chase' ? '追跡祈祷' : '旋回する祈り';
 }
 
 export function forcePriestMode(runtime: PriestBoss, world: World, loadout: PlayerLoadout, mode: 'chase' | 'orb' | 'duel'): void {
@@ -489,7 +492,7 @@ export function forcePriestMode(runtime: PriestBoss, world: World, loadout: Play
   runtime.mode = mode;
   runtime.nextShotAt = world.time;
   runtime.nextCheckAt = world.time;
-  runtime.notice = mode === 'chase' ? '追跡祈祷' : '加速する祈り';
+  runtime.notice = mode === 'chase' ? '追跡祈祷' : '旋回する祈り';
 }
 
 function priestDuelMovement(runtime: PriestBoss, world: World, boss: Enemy): void {
@@ -560,21 +563,36 @@ function stepPriest(runtime: PriestBoss, world: World, loadout: PlayerLoadout, d
     const len = Math.max(1, Math.hypot(dx, dy));
     boss.vel = { x: (dx / len) * 72, y: (dy / len) * 72 };
     while (world.time >= runtime.nextShotAt) {
-      pushAimed(world, boss.pos, 118 + level * 3, 6, 1, 0, 'normal');
+      pushAimed(world, boss.pos, 118 + level * 3, 6, 1, 0, 'normal', { bouncesRemaining: 10 });
       runtime.nextShotAt += 0.44;
     }
   } else {
-    boss.vel = { x: Math.sign(boss.vel.x || 1) * 58, y: 0 };
+    const center = {
+      x: world.bounds.x + world.bounds.w / 2,
+      y: world.bounds.y + world.bounds.h / 2,
+    };
+    const dx = center.x - boss.pos.x;
+    const dy = center.y - boss.pos.y;
+    const distance = Math.hypot(dx, dy);
+    const moveSpeed = 96;
+    if (distance > Math.max(1, moveSpeed * dt)) {
+      boss.vel = { x: (dx / distance) * moveSpeed, y: (dy / distance) * moveSpeed };
+      return;
+    }
+    boss.pos = center;
+    boss.vel = { x: 0, y: 0 };
     while (world.time >= runtime.nextCheckAt) {
-      const count = world.bullets.filter((b) => b.owner === 'enemy').length;
-      if (count <= 18) {
-        pushAimed(world, boss.pos, 108 + level * 2, 10, 1, 0, 'orb', {
-          bouncesRemaining: 99,
-          bounceSpeedUp: 1.22,
-          maxBounceSpeed: 260,
+      const volleyIndex = Math.round(runtime.orbAngle / (Math.PI / PRIEST_RADIAL_WAYS));
+      const curveDirection = volleyIndex % 2 === 0 ? 1 : -1;
+      for (let i = 0; i < PRIEST_RADIAL_WAYS; i++) {
+        const angle = runtime.orbAngle + (Math.PI * 2 * i) / PRIEST_RADIAL_WAYS;
+        pushBullet(world, boss.pos, angle, 64 + level, 5, 'orb', {
+          angularVelocity: curveDirection * 0.32,
+          curveUntil: world.time + 3,
         });
       }
-      runtime.nextCheckAt += 0.75;
+      runtime.orbAngle = (runtime.orbAngle + Math.PI / PRIEST_RADIAL_WAYS) % (Math.PI * 2);
+      runtime.nextCheckAt += PRIEST_RADIAL_INTERVAL;
     }
   }
 }
@@ -632,7 +650,7 @@ export function bossStatus(runtime: BossEncounter, world: World): string {
   }
   if (runtime.kind === 'shogun') return getEnemy(world, runtime.wallId) ? '壁を破壊せよ' : '本体露出';
   if (runtime.kind === 'tank') return `装甲段階 ${runtime.stage}${runtime.rebound ? '・跳弾' : ''}`;
-  return runtime.mode === 'chase' ? '追跡祈祷' : runtime.mode === 'orb' ? '加速する祈り' : '決闘';
+  return runtime.mode === 'chase' ? '追跡祈祷' : runtime.mode === 'orb' ? '旋回する祈り' : '決闘';
 }
 
 export function forceBossEvent(runtime: BossEncounter, world: World): void {

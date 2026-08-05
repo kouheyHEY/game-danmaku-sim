@@ -146,7 +146,7 @@ async function main(): Promise<void> {
       { label: 'ボスイベント発動', onClick: () => debugTriggerBossEvent(session) },
       { label: '大ボス連戦開始', onClick: () => { session = beginSession(undefined, { featureBossOnly: true }); acc = 0; stopDragging(); } },
       { label: 'プリーストA 追跡', onClick: () => debugPriestMode(session, 'chase') },
-      { label: 'プリーストB 加速弾', onClick: () => debugPriestMode(session, 'orb') },
+      { label: 'プリーストB 旋回弾', onClick: () => debugPriestMode(session, 'orb') },
       { label: 'プリーストC 決闘', onClick: () => debugPriestMode(session, 'duel') },
       { label: '雑魚出現', onClick: () => debugSpawnMob(session) },
       { label: 'Lv+強化', onClick: () => debugLevelUp(session) },

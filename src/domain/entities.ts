@@ -45,6 +45,8 @@ export interface Bullet {
   maxBounceSpeed?: number; // この速度へ達したら反射を終える
   reversaBaseVel?: Vec2; // リバーサ反転弾の、反転前の速度ベクトル
   reversaTurnAt?: number; // この時刻から徐々に速度ベクトルを反転する
+  angularVelocity?: number; // 速度ベクトルを毎秒回転させる角速度 [rad/s]
+  curveUntil?: number; // この時刻まで angularVelocity を適用する
   expired?: boolean; // 特殊寿命を終え、次の整理で消える
   style?: 'normal' | 'reversa' | 'sniper' | 'wave' | 'orb' | 'side' | 'tank';
 }

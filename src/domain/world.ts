@@ -147,6 +147,15 @@ function emitBullets(world: World, dt: number): void {
 
 function moveBullets(world: World, dt: number): void {
   for (const b of world.bullets) {
+    if (b.angularVelocity && (b.curveUntil === undefined || world.time < b.curveUntil)) {
+      const turn = b.angularVelocity * dt;
+      const cos = Math.cos(turn);
+      const sin = Math.sin(turn);
+      b.vel = {
+        x: b.vel.x * cos - b.vel.y * sin,
+        y: b.vel.x * sin + b.vel.y * cos,
+      };
+    }
     b.pos = { x: b.pos.x + b.vel.x * dt, y: b.pos.y + b.vel.y * dt };
     if (b.owner !== 'enemy' || !b.bouncesRemaining) continue;
 

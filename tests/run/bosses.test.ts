@@ -211,35 +211,54 @@ describe('特徴ボス', () => {
     expect(s.boss.recoverUntil).toBeGreaterThan(s.world.time);
   });
 
-  it('プリーストBは弾が少ない時だけ加速跳弾を出し、Cは模倣して被ダメージを半減する', () => {
+  it('プリーストBは中央へ移動して角度をずらした36方向の曲射弾を出し、Cは模倣して被ダメージを半減する', () => {
     const s = beginSession(6);
     s.world.ship.autoFire = false;
     debugSpawnBossKind(s, 'priest');
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
-    expect(boss.maxHp).toBeGreaterThanOrEqual(360);
+    expect(boss.maxHp).toBeGreaterThanOrEqual(420);
     expect(boss.hitRadius).toBe(10);
     if (s.boss?.kind !== 'priest') throw new Error('priest runtime expected');
 
-    boss.hp = boss.maxHp * 0.49;
+    s.boss.nextShotAt = s.world.time;
+    stepSession(s, STILL, DT);
+    const chaseBullet = s.world.bullets.find((b) => b.style === 'normal')!;
+    expect(chaseBullet.bouncesRemaining).toBe(10);
+
+    boss.hp = boss.maxHp * 0.64;
     stepSession(s, STILL, DT);
     expect(s.boss.mode).toBe('orb');
-    expect(Math.abs(boss.vel.x)).toBeGreaterThanOrEqual(58);
-    debugPriestMode(s, 'orb');
+    expect(boss.vel.y).toBeGreaterThan(0);
+
+    s.world.bullets = [];
+    boss.pos = { x: s.world.bounds.x + s.world.bounds.w / 2, y: s.world.bounds.y + s.world.bounds.h / 2 };
+    s.boss.nextCheckAt = s.world.time;
     stepSession(s, STILL, DT);
-    const orb = s.world.bullets.find((b) => b.style === 'orb')!;
-    expect(Math.hypot(orb.vel.x, orb.vel.y)).toBeGreaterThanOrEqual(108);
-    expect(orb.bouncesRemaining).toBeGreaterThan(1);
-    expect(orb.bounceSpeedUp).toBeGreaterThan(1);
-    const bounces0 = orb.bouncesRemaining!;
-    orb.pos = { x: s.world.bounds.w - orb.radius + 1, y: s.world.bounds.h / 2 };
-    orb.vel = { x: 100, y: 0 };
+    const radial = s.world.bullets.filter((b) => b.style === 'orb');
+    expect(radial).toHaveLength(36);
+    expect(boss.pos).toEqual({ x: s.world.bounds.x + s.world.bounds.w / 2, y: s.world.bounds.y + s.world.bounds.h / 2 });
+    expect(boss.vel).toEqual({ x: 0, y: 0 });
+    expect(radial.every((b) => Math.hypot(b.vel.x, b.vel.y) < 70)).toBe(true);
+    expect(radial.every((b) => b.angularVelocity === 0.32 && b.curveUntil! > s.world.time)).toBe(true);
+    const angles = radial.map((b) => Math.atan2(b.vel.y, b.vel.x)).sort((a, b) => a - b);
+    const gaps = angles.map((angle, i) => {
+      const next = angles[(i + 1) % angles.length] + (i === angles.length - 1 ? Math.PI * 2 : 0);
+      return next - angle;
+    });
+    expect(gaps.every((gap) => Math.abs(gap - Math.PI * 2 / 36) < 1e-6)).toBe(true);
+    expect(s.boss.orbAngle).toBeCloseTo(Math.PI / 36);
+
+    const firstVelocity = { ...radial[0].vel };
+    stepFor(s, 0.5);
+    expect(radial[0].vel).not.toEqual(firstVelocity);
+
+    s.world.bullets = [];
+    s.boss.nextCheckAt = s.world.time;
     stepSession(s, STILL, DT);
-    expect(orb.vel.x).toBeLessThan(0);
-    expect(orb.bouncesRemaining).toBe(bounces0 - 1);
-    orb.pos = { x: orb.radius - 1, y: s.world.bounds.h / 2 };
-    orb.vel = { x: -250, y: 0 };
-    stepSession(s, STILL, DT);
-    expect(s.world.bullets).not.toContain(orb); // 上限速度へ達した時点で消える
+    const shifted = s.world.bullets.filter((b) => b.style === 'orb');
+    expect(shifted).toHaveLength(36);
+    expect(shifted.every((b) => b.angularVelocity === -0.32)).toBe(true);
+    expect(s.boss.orbAngle).toBeCloseTo(Math.PI / 18);
 
     debugPriestMode(s, 'duel');
     expect(s.boss.mode).toBe('duel');
