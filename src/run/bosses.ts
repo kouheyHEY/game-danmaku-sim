@@ -11,6 +11,7 @@ const DOWN = Math.PI / 2;
 const REVERSA_INTERVAL = 0.52;
 const REVERSA_WAYS = 5;
 const REVERSA_TURN_DURATION = 1.4;
+const REVERSA_INCOMING_DELAY = REVERSA_TURN_DURATION + 0.12;
 const REVERSA_INCOMING_INTERVAL = 0.18;
 const PRIEST_HP_MULTIPLIER = 4.2;
 const PRIEST_ORB_HP_RATIO = 0.65;
@@ -118,10 +119,7 @@ function enemy(
 }
 
 export function bossKindForLevel(level: number): BossKind {
-  const bossNumber = level + 1;
-  if (bossNumber % 3 !== 0) return 'normal';
-  const featureIndex = bossNumber / 3 - 1;
-  return BOSS_ORDER[featureIndex % BOSS_ORDER.length];
+  return BOSS_ORDER[level % BOSS_ORDER.length];
 }
 
 export function featureBossKindForLevel(level: number): FeatureBossKind {
@@ -156,7 +154,7 @@ export function makeBossEncounter(
     e.role = 'boss';
     e.hitRadius = strong ? 18 : 16;
     e.pattern = null;
-    e.vel.x = 0;
+    e.vel.x = 24;
     return { enemies: [e], encounter: { ...base, kind, nextShotAt: now + 0.6, reversing: false } };
   }
 
@@ -250,7 +248,8 @@ function markReversaBulletForTurn(bullet: Bullet, turnAt: number): void {
 function activateReversaTurn(runtime: ReversaBoss, world: World): void {
   if (runtime.reversing) return;
   runtime.reversing = true;
-  runtime.nextShotAt = world.time + 0.3;
+  // 既存弾が完全な逆向き速度へ戻ってから、画面外からの流入弾へ繋ぐ。
+  runtime.nextShotAt = world.time + REVERSA_INCOMING_DELAY;
   runtime.notice = 'ベクトル反転';
   for (const bullet of world.bullets) {
     if (bullet.owner === 'enemy' && bullet.style === 'reversa') {
@@ -416,7 +415,7 @@ function stepTank(runtime: TankBoss, world: World, level: number): void {
 
   const normalSpeed = (135 + level * 6) * (1 + runtime.stage * 0.12);
   const normalRadius = 5.5 + runtime.stage * 0.8;
-  const speed = normalSpeed;
+  const speed = runtime.rebound ? normalSpeed * 0.85 : normalSpeed;
   let radius = normalRadius;
   let bouncing = false;
   if (runtime.rebound) {

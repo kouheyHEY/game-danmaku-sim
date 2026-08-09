@@ -7,7 +7,7 @@ import {
 import { SessionRenderer, pauseButtonRect, specialRewardCardRects } from '../render/sessionRenderer';
 import { mountDebugPanel, debugEnabled, type DebugButton } from '../render/debugPanel';
 import {
-  debugSpawnBoss, debugSpawnStrongBoss, debugSpawnBossKind, debugTriggerBossEvent, debugPriestMode,
+  debugSpawnBossKind, debugTriggerBossEvent, debugPriestMode,
   debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
   debugAddMaxHp, debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, WEAPON_UPGRADES,
 } from '../run/debug';
@@ -140,8 +140,6 @@ async function main(): Promise<void> {
   // デバッグパネル（開発時 or ?debug 付きURL）：任意の動作を好きに発動できる。
   if (debugEnabled()) {
     const buttons: DebugButton[] = [
-      { label: 'ボス出現', onClick: () => debugSpawnBoss(session) },
-      { label: '強敵ボス出現', onClick: () => debugSpawnStrongBoss(session) },
       ...BOSS_ORDER.map((kind) => ({ label: `BOSS ${BOSS_NAMES[kind]}`, onClick: () => debugSpawnBossKind(session, kind) })),
       { label: 'ボスイベント発動', onClick: () => debugTriggerBossEvent(session) },
       { label: '大ボス連戦開始', onClick: () => { session = beginSession(undefined, { featureBossOnly: true }); acc = 0; stopDragging(); } },

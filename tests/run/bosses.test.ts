@@ -18,29 +18,27 @@ function stepFor(s: ReturnType<typeof beginSession>, seconds: number): void {
 }
 
 describe('特徴ボス', () => {
-  it('通常ボス2体ごとに特徴ボスが出て、15体目にプリーストが来る', () => {
+  it('中ボスなしで全ボス枠に5種の大ボスが固定順で出る', () => {
     expect(Array.from({ length: 15 }, (_, level) => bossKindForLevel(level))).toEqual([
-      'normal', 'normal', 'reversa',
-      'normal', 'normal', 'sniper',
-      'normal', 'normal', 'shogun',
-      'normal', 'normal', 'tank',
-      'normal', 'normal', 'priest',
+      'reversa', 'sniper', 'shogun', 'tank', 'priest',
+      'reversa', 'sniper', 'shogun', 'tank', 'priest',
+      'reversa', 'sniper', 'shogun', 'tank', 'priest',
     ]);
   });
 
-  it('15体を順番に撃破し、3体ごとの特別報酬を経ても進行が続く', () => {
+  it('15体を順番に撃破し、毎回の特別報酬を経ても進行が続く', () => {
     const s = beginSession(11);
     s.world.ship.invulnUntil = 1e9;
     s.world.ship.autoFire = false;
     const expected = Array.from({ length: 15 }, (_, level) => bossKindForLevel(level));
-    for (const [index, kind] of expected.entries()) {
+    for (const kind of expected) {
       s.nextBossAt = s.world.time;
       stepSession(s, STILL, DT);
       expect(s.bossKind).toBe(kind);
       for (const e of s.world.enemies) e.hp = 0;
       stepSession(s, STILL, DT);
-      expect(s.phase === 'reward').toBe((index + 1) % 3 === 0);
-      if (s.phase === 'reward') expect(chooseSpecialUpgrade(s, 0)).toBe(true);
+      expect(s.phase).toBe('reward');
+      expect(chooseSpecialUpgrade(s, 0)).toBe(true);
     }
     expect(s.level).toBe(15);
     expect(s.boss).toBeNull();
@@ -80,6 +78,7 @@ describe('特徴ボス', () => {
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
     expect(boss.pattern).toBeNull();
     expect(boss.maxHp).toBeGreaterThan(200);
+    expect(Math.abs(boss.vel.x)).toBe(24);
     stepFor(s, 1);
     const opening = s.world.bullets.filter((b) => b.style === 'reversa');
     expect(opening.length).toBeGreaterThanOrEqual(5);
@@ -94,6 +93,7 @@ describe('特徴ボス', () => {
     stepSession(s, STILL, DT);
     expect(s.boss.reversing).toBe(true);
     expect(tracked.reversaTurnAt).toBeDefined();
+    expect(s.boss.nextShotAt - s.world.time).toBeGreaterThan(1.4);
     const base = { ...tracked.reversaBaseVel! };
     const baseSpeed = Math.hypot(base.x, base.y);
 
@@ -102,6 +102,10 @@ describe('特徴ボス', () => {
     stepFor(s, 0.7);
     expect(tracked.vel.x * base.x + tracked.vel.y * base.y).toBeLessThan(0);
     expect(Math.hypot(tracked.vel.x, tracked.vel.y)).toBeCloseTo(baseSpeed, 0);
+    expect(s.world.bullets.some((b) => b.style === 'reversa' && b.reversaTurnAt === undefined)).toBe(false);
+
+    stepFor(s, 0.13);
+    expect(s.world.bullets.some((b) => b.style === 'reversa' && b.reversaTurnAt === undefined)).toBe(true);
 
     s.world.bullets = [];
     s.boss.nextShotAt = s.world.time;
@@ -200,7 +204,8 @@ describe('特徴ボス', () => {
     s.boss.nextShotAt = s.world.time;
     stepSession(s, STILL, DT);
     const bounce = s.world.bullets.find((b) => b.style === 'tank')!;
-    expect(Math.hypot(bounce.vel.x, bounce.vel.y)).toBeGreaterThan(180);
+    expect(Math.hypot(bounce.vel.x, bounce.vel.y)).toBeGreaterThan(150);
+    expect(Math.hypot(bounce.vel.x, bounce.vel.y)).toBeLessThan(180);
     expect(bounce.radius).toBe(3);
     expect(bounce.bouncesRemaining).toBe(1);
 

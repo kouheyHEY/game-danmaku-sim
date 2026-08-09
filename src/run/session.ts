@@ -216,9 +216,12 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
   // 出現：ボス中は雑魚を止める
   if (session.phase === 'playing' && session.bossId == null) {
     if (w.time >= session.nextBossAt) {
-      const strong = session.featureBossOnly || (session.level + 1) % 3 === 0;
-      const kind = session.featureBossOnly ? featureBossKindForLevel(session.level) : bossKindForLevel(session.level);
-      spawnBoss(session, kind, strong);
+      // ボス時刻以降は雑魚の追加を止め、今いる雑魚が撃破・退場してから大ボスへ移る。
+      const mobsRemain = w.enemies.some((e) => e.role === 'mob');
+      if (!mobsRemain) {
+        const kind = session.featureBossOnly ? featureBossKindForLevel(session.level) : bossKindForLevel(session.level);
+        spawnBoss(session, kind, true);
+      }
     } else if (w.time >= session.nextMobAt) {
       const id = session.nextEnemyId++;
       const x = w.bounds.x + 20 + session.rng.next() * (w.bounds.w - 40);
@@ -229,14 +232,10 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
 
 }
 
-/** 指定ボスを安全な空戦場へ出現させる。通常進行とdev-loopで共用する。 */
+/** 指定ボスを出現させる。通常進行とdev-loopで共用する。 */
 export function spawnBoss(session: Session, kind: BossKind, strong = false): boolean {
   if (session.boss) return false;
   const w = session.world;
-  if (kind !== 'normal') {
-    w.enemies = [];
-    w.bullets = [];
-  }
   const spawn = makeBossEncounter(kind, session.level, w.bounds, session.rng, strong, w.time, () => session.nextEnemyId++);
   w.enemies.push(...spawn.enemies);
   session.boss = spawn.encounter;
@@ -248,7 +247,7 @@ export function spawnBoss(session: Session, kind: BossKind, strong = false): boo
   return true;
 }
 
-/** 強敵ボス撃破後の2択を適用して戦闘へ戻る。 */
+/** 大ボス撃破後の2択を適用して戦闘へ戻る。 */
 export function chooseSpecialUpgrade(session: Session, index: number): boolean {
   if (session.phase !== 'reward') return false;
   const upgrade = session.specialChoices[index];

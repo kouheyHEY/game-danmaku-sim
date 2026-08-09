@@ -58,8 +58,26 @@ describe('武器強化プール（弾数+2一強の解消）', () => {
     const ways0 = l.weapon.ways;
     const spread0 = l.weapon.spread;
     focusBurst.apply(l);
-    expect(l.weapon.ways).toBe(ways0 + 4);
+    expect(l.weapon.ways).toBe(ways0 + 2);
     expect(l.weapon.spread).toBeLessThan(spread0);
+  });
+
+  it('直線弾からフォーカスバーストを取っても3方向までに抑える', () => {
+    const l = startingLoadout();
+    const focusBurst = SPECIAL_UPGRADES.find((u) => u.name === 'フォーカスバースト')!;
+    focusBurst.apply(l);
+    expect(l.weapon.kind).toBe('odd');
+    expect(l.weapon.ways).toBe(3);
+  });
+
+  it('オーバードライブは連射と弾速を控えめに強化する', () => {
+    const l = startingLoadout();
+    const overdrive = SPECIAL_UPGRADES.find((u) => u.name === 'オーバードライブ')!;
+    const interval0 = l.weapon.interval;
+    const speed0 = l.weapon.speed;
+    overdrive.apply(l);
+    expect(l.weapon.interval).toBeCloseTo(interval0 * 0.78);
+    expect(l.weapon.speed).toBe(speed0 + 120);
   });
 
   it('特別強化は重複なしで2択になり、通常強化より大きく変化する', () => {

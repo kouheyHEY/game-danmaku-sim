@@ -64,26 +64,36 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     expect(s.kills).toBe(kills0 + 1);
   });
 
-  it('一定時間でボスが出現し弾幕を持つ', () => {
+  it('一定時間で最初の大ボスが出現し弾幕を撃つ', () => {
     const s = beginSession(1);
     s.world.ship.invulnUntil = 1e9;
     s.nextMobAt = 1e9; // 雑魚を止めてボスだけ
     s.nextBossAt = s.world.time + 0.2;
-    stepFor(s, 0.5);
+    stepFor(s, 1);
     expect(s.bossId).not.toBeNull();
-    const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
-    expect(boss.pattern).not.toBeNull(); // ボスも撃つ
+    expect(s.bossKind).toBe('reversa');
+    expect(s.bossIsStrong).toBe(true);
+    expect(s.world.bullets.some((b) => b.style === 'reversa')).toBe(true);
   });
 
-  it('通常ボス出現時は、戦闘中の雑魚と残弾を消さない', () => {
+  it('ボス時刻後は増援を止め、雑魚全滅後に残弾を消さず大ボスを出す', () => {
     const s = beginSession(12);
     s.nextBossAt = 1e9;
     stepFor(s, 0.6);
     const mobIds = s.world.enemies.map((e) => e.id);
     expect(mobIds.length).toBeGreaterThan(0);
     s.world.bullets.push({ id: 9998, pos: { x: 20, y: 20 }, vel: { x: 0, y: 0 }, radius: 4, owner: 'enemy' });
-    expect(spawnBoss(s, 'normal')).toBe(true);
-    expect(mobIds.every((id) => s.world.enemies.some((e) => e.id === id))).toBe(true);
+    s.nextBossAt = s.world.time;
+    const enemyCount = s.world.enemies.length;
+    stepFor(s, 0.5);
+    expect(s.bossId).toBeNull();
+    expect(s.world.enemies.length).toBeLessThanOrEqual(enemyCount);
+    expect(s.world.enemies.every((e) => mobIds.includes(e.id))).toBe(true);
+
+    s.world.enemies.forEach((e) => (e.hp = 0));
+    stepSession(s, STILL, DT);
+    expect(s.bossKind).toBe('reversa');
+    expect(s.bossIsStrong).toBe(true);
     expect(s.world.bullets.some((b) => b.id === 9998)).toBe(true);
   });
 
@@ -103,7 +113,7 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     expect(s.world.enemies.every((e) => e.role !== 'mob')).toBe(true);
   });
 
-  it('ボス撃破で HP+1回復・武器強化・撃破数+1・次のボス予約', () => {
+  it('大ボス撃破でHP+1回復・撃破数+1・特別強化選択後に次のボスを予約する', () => {
     const s = beginSession(1);
     s.world.ship.invulnUntil = 1e9;
     s.world.ship.hp = 2; // 回復が見えるよう減らしておく
@@ -112,15 +122,17 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     stepFor(s, 0.2); // ボス出現
     expect(s.bossId).not.toBeNull();
     const kills0 = s.kills;
-    const wpnBefore = JSON.stringify(s.loadout.weapon);
+    const loadoutBefore = JSON.stringify(s.loadout);
     s.world.enemies.forEach((e) => (e.hp = 0)); // 撃破
     stepSession(s, STILL, DT);
     expect(s.bossId).toBeNull();
     expect(s.level).toBe(1);
     expect(s.world.ship.hp).toBe(3); // +1回復
     expect(s.kills).toBe(kills0 + 1);
-    expect(JSON.stringify(s.loadout.weapon)).not.toBe(wpnBefore); // 強化された
-    expect(s.toast).not.toBeNull();
+    expect(s.phase).toBe('reward');
+    expect(s.specialChoices).toHaveLength(2);
+    expect(chooseSpecialUpgrade(s, 0)).toBe(true);
+    expect(JSON.stringify(s.loadout)).not.toBe(loadoutBefore);
     expect(s.nextBossAt).toBeGreaterThan(s.world.time);
   });
 
@@ -137,9 +149,8 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     expect(scoreForDodged(10, 3)).toBeCloseTo(13.31);
   });
 
-  it('3体目ごとに通常より硬い強敵ボスが出現する', () => {
+  it('すべてのボス枠で固定順の強敵ボスが出現する', () => {
     const s = beginSession(1);
-    s.level = 2; // 次が3体目
     s.nextMobAt = 1e9;
     s.nextBossAt = s.world.time + 0.05;
     stepFor(s, 0.2);
@@ -147,7 +158,7 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     expect(s.bossKind).toBe('reversa');
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
     expect(boss.hitRadius).toBeLessThanOrEqual(18);
-    expect(boss.maxHp).toBeGreaterThan(400);
+    expect(boss.maxHp).toBeGreaterThanOrEqual(200);
   });
 
   it('強敵ボス撃破で2択が出て、選択後に強化を反映して進行再開する', () => {

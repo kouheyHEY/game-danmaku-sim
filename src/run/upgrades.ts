@@ -48,27 +48,27 @@ export const WEAPON_UPGRADES: WeaponUpgrade[] = [
   { name: '収束UP', apply: (l) => void (l.weapon.spread = Math.max(SPREAD_FLOOR, l.weapon.spread - 0.03)), available: (l) => l.weapon.kind !== 'straight' && l.weapon.spread > SPREAD_FLOOR },
 ];
 
-/** 3体ごとの強敵ボスだけが落とす、通常より大きくビルドを変える強化。 */
+/** 大ボスが落とす、通常強化より大きくビルドを変える強化。 */
 export const SPECIAL_UPGRADES: SpecialUpgrade[] = [
   {
     name: 'フォーカスバースト',
-    description: '弾数+4・拡散角を絞る',
+    description: '弾数+2・拡散角を絞る',
     apply(l) {
       if (l.weapon.kind === 'straight') {
         l.weapon.kind = 'odd';
-        l.weapon.ways = 5;
+        l.weapon.ways = 3;
       } else {
-        l.weapon.ways += 4;
+        l.weapon.ways += 2;
       }
       l.weapon.spread = Math.max(SPREAD_FLOOR, l.weapon.spread - 0.05);
     },
   },
   {
     name: 'オーバードライブ',
-    description: '連射速度を大幅UP・弾速UP',
+    description: '連射速度UP・弾速UP',
     apply(l) {
-      l.weapon.interval = Math.max(0.03, l.weapon.interval * 0.68);
-      l.weapon.speed += 180;
+      l.weapon.interval = Math.max(0.03, l.weapon.interval * 0.78);
+      l.weapon.speed += 120;
     },
   },
   {
@@ -98,7 +98,7 @@ export function randomWeaponUpgrade(rng: Rng, loadout: PlayerLoadout): string {
   return u.name;
 }
 
-/** 強敵ボス報酬。利用可能な候補から重複なしで2つ引く。 */
+/** 大ボス報酬。利用可能な候補から重複なしで2つ引く。 */
 export function drawSpecialUpgrades(rng: Rng, loadout: PlayerLoadout): SpecialUpgrade[] {
   const pool = SPECIAL_UPGRADES.filter((u) => !u.available || u.available(loadout));
   const choices: SpecialUpgrade[] = [];

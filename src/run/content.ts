@@ -85,7 +85,7 @@ export function makeBoss(id: number, level: number, bounds: Rect, rng: Rng): Ene
   };
 }
 
-/** 3体ごとに現れる強敵ボス。通常ボスより硬く、大きく、密度の高い専用弾幕を持つ。 */
+/** 大ボス用の基礎エンティティ。通常ボスより硬く、密度の高い専用弾幕を持つ。 */
 export function makeStrongBoss(id: number, level: number, bounds: Rect, rng: Rng): Enemy {
   const patterns: Array<(l: number) => Pattern> = [
     (l) => rotating({ ways: 12 + Math.min(6, l), spread: 0.24, rotStep: 0.22, speed: 145 + l * 6, radius: 7, interval: 0.11 }),
