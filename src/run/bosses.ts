@@ -426,7 +426,8 @@ function stepTank(runtime: TankBoss, world: World, level: number): void {
     radius = 3 + (normalRadius - 3) * p;
   }
   const densitySteps = Math.floor(runtime.stage / 2);
-  const interval = Math.max(0.2, 0.5 - densitySteps * 0.11);
+  const baseInterval = Math.max(0.2, 0.5 - densitySteps * 0.11);
+  const interval = runtime.rebound ? baseInterval * 2.5 : baseInterval;
   while (world.time >= runtime.nextShotAt) {
     pushAimed(
       world,

@@ -208,6 +208,7 @@ describe('特徴ボス', () => {
     expect(Math.hypot(bounce.vel.x, bounce.vel.y)).toBeLessThan(180);
     expect(bounce.radius).toBe(3);
     expect(bounce.bouncesRemaining).toBe(1);
+    expect(s.boss.nextShotAt - s.world.time).toBeGreaterThan(0.95);
 
     debugTriggerBossEvent(s);
     stepSession(s, STILL, DT);
