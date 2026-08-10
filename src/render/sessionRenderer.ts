@@ -1,4 +1,4 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import { FIELD } from '../spec/stage0';
 import { RESPAWN_TIME, type Session } from '../run/session';
 import { BOSS_NAMES, bossStatus } from '../run/bosses';
@@ -10,8 +10,10 @@ const PRIEST = 0x34d399;
 const ENEMY_BULLET = 0xffd166;
 const ENEMY_BULLET_OUTLINE = 0x5c2d10;
 const PLAYER_BULLET = 0x67e8f9;
-const SHIP = 0x4ea1ff;
 const PLAYER_BULLET_VISUAL_MAX = 7;
+const PLAYER_TEXTURE_SIZE = 64;
+const BOSS_TEXTURE_SIZE = 96;
+const PRIEST_TEXTURE_SIZE = 32;
 const BULLET_COLORS = {
   normal: ENEMY_BULLET,
   reversa: 0xf0abfc,
@@ -24,6 +26,16 @@ const BULLET_COLORS = {
 } as const;
 
 export interface RewardCardRect { x: number; y: number; w: number; h: number }
+
+export type BossTextureKey = 'reversa' | 'sniper' | 'shogun' | 'tank' | 'priest';
+
+export interface EntityTextures extends Record<BossTextureKey, Texture> {
+  player: Texture;
+}
+
+export function bossTextureDisplaySize(kind: BossTextureKey): number {
+  return kind === 'priest' ? PRIEST_TEXTURE_SIZE : BOSS_TEXTURE_SIZE;
+}
 
 /** 描画とタップ判定で共有する、スマホ向けの大きな2択カード。 */
 export function specialRewardCardRects(): RewardCardRect[] {
@@ -53,6 +65,9 @@ export class SessionRenderer {
   private readonly fxG = new Graphics();
   private readonly bossG = new Graphics();
   private readonly shipG = new Graphics();
+  private readonly enemySprites = new Container();
+  private readonly enemySpriteById = new Map<number, Sprite>();
+  private readonly shipSprite: Sprite;
   private readonly hpText: Text;
   private readonly scoreLabel: Text;
   private readonly scoreNum: Text;
@@ -69,10 +84,17 @@ export class SessionRenderer {
   private readonly rewardTexts: Text[];
   private readonly center: Text;
 
-  constructor(stage: Container) {
+  constructor(stage: Container, private readonly textures: EntityTextures) {
     // 安全な自弾は奥、避けるべき敵弾は敵より手前、自機と白い当たり判定は最前面。
     // 強化で自弾が大きく・多くなっても、危険情報が隠れない描画順を固定する。
-    stage.addChild(this.playerBulletsG, this.bossG, this.enemyBulletsG, this.fxG, this.shipG);
+    this.shipSprite = new Sprite(textures.player);
+    this.shipSprite.anchor.set(0.5);
+    this.shipSprite.width = PLAYER_TEXTURE_SIZE;
+    this.shipSprite.height = PLAYER_TEXTURE_SIZE;
+    stage.addChild(
+      this.playerBulletsG, this.enemySprites, this.bossG, this.enemyBulletsG,
+      this.fxG, this.shipSprite, this.shipG,
+    );
 
     this.hpText = new Text({ text: '', style: { ...style(15, 0xff8fa3), align: 'left' } });
     this.hpText.position.set(62, 16);
@@ -148,20 +170,48 @@ export class SessionRenderer {
     }
 
     this.bossG.clear();
+    for (const sprite of this.enemySpriteById.values()) sprite.visible = false;
+    const liveEnemyIds = new Set(w.enemies.map((enemy) => enemy.id));
     for (const e of w.enemies) {
       if (e.visible === false) continue;
       const inBoss = !!session.boss?.enemyIds.includes(e.id);
       const strong = session.bossIsStrong && inBoss;
       const priest = session.boss?.kind === 'priest' && e.id === session.boss.primaryId;
       const color = priest ? PRIEST : e.role === 'guard' ? 0x94a3b8 : e.role === 'sniper' ? 0x67e8f9 : strong ? STRONG_BOSS : BOSS;
-      const visualRadius = priest ? 13 : e.hitRadius;
+      const textureKey: BossTextureKey | null = inBoss && e.role !== 'guard' && session.boss?.kind !== 'normal'
+        ? session.boss?.kind ?? null
+        : null;
+      const textureSize = textureKey ? bossTextureDisplaySize(textureKey) : null;
+      const visualRadius = textureSize ? textureSize / 2 : priest ? 13 : e.hitRadius;
       if (strong) this.bossG.circle(e.pos.x, e.pos.y, visualRadius + 8).stroke({ color, width: 4, alpha: 0.55 });
-      this.bossG.circle(e.pos.x, e.pos.y, visualRadius).fill({ color, alpha: e.targetable === false ? 0.34 : 1 });
+      if (textureKey && textureSize) {
+        let sprite = this.enemySpriteById.get(e.id);
+        if (!sprite) {
+          sprite = new Sprite(this.textures[textureKey]);
+          sprite.anchor.set(0.5);
+          this.enemySpriteById.set(e.id, sprite);
+          this.enemySprites.addChild(sprite);
+        }
+        sprite.texture = this.textures[textureKey];
+        sprite.position.set(e.pos.x, e.pos.y);
+        sprite.width = textureSize;
+        sprite.height = textureSize;
+        sprite.alpha = e.targetable === false ? 0.34 : 1;
+        sprite.visible = true;
+      } else {
+        this.bossG.circle(e.pos.x, e.pos.y, visualRadius).fill({ color, alpha: e.targetable === false ? 0.34 : 1 });
+      }
       const bw = Math.max(24, visualRadius * 2.4);
       const bx = e.pos.x - bw / 2;
       const by = e.pos.y - visualRadius - 10;
       this.bossG.rect(bx, by, bw, 4).fill({ color: 0x33384a });
       this.bossG.rect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 4).fill({ color });
+    }
+    for (const [id, sprite] of this.enemySpriteById) {
+      if (liveEnemyIds.has(id)) continue;
+      sprite.removeFromParent();
+      sprite.destroy();
+      this.enemySpriteById.delete(id);
     }
 
     this.fxG.clear();
@@ -173,11 +223,13 @@ export class SessionRenderer {
     }
 
     this.shipG.clear();
-    if (session.phase !== 'gameover') {
+    this.shipSprite.visible = session.phase !== 'gameover';
+    if (this.shipSprite.visible) {
       const inv = w.time < ship.invulnUntil;
       const a = inv ? 0.3 + 0.5 * ((Math.sin(w.time * 28) + 1) / 2) : 1;
-      this.shipG.circle(ship.pos.x, ship.pos.y, 20).fill({ color: SHIP, alpha: 0.16 * a });
-      this.shipG.circle(ship.pos.x, ship.pos.y, 14).fill({ color: SHIP, alpha: 0.85 * a });
+      this.shipSprite.position.set(ship.pos.x, ship.pos.y);
+      this.shipSprite.alpha = a;
+      // 見た目を64pxにしても、衝突判定は従来どおり ship.hitRadius（3px）のまま。
       this.shipG.circle(ship.pos.x, ship.pos.y, ship.hitRadius).fill({ color: 0xffffff, alpha: a });
     }
 

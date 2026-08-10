@@ -1,10 +1,12 @@
-import { Application } from 'pixi.js';
+import { Application, Assets, type Texture } from 'pixi.js';
 import { FIELD } from '../spec/stage0';
 import type { ShipInput } from '../domain/entities';
 import {
   titleSession, beginSession, stepSession, chooseSpecialUpgrade, pauseSession, resumeSession, type Session,
 } from '../run/session';
-import { SessionRenderer, pauseButtonRect, specialRewardCardRects } from '../render/sessionRenderer';
+import {
+  SessionRenderer, pauseButtonRect, specialRewardCardRects, type EntityTextures,
+} from '../render/sessionRenderer';
 import { mountDebugPanel, debugEnabled, type DebugButton } from '../render/debugPanel';
 import {
   debugSpawnBossKind, debugTriggerBossEvent, debugPriestMode,
@@ -18,6 +20,28 @@ import { GameSfx } from '../audio/sfx';
 const STEP = 1 / 120; // 固定タイムステップ（決定論・当たり判定の安定）
 const MAX_FRAME = 0.25; // スパイク時の暴走防止
 
+async function loadEntityTextures(): Promise<EntityTextures> {
+  const assets = [
+    ['player', 'player'],
+    ['reversa', 'reverser'],
+    ['sniper', 'sniper'],
+    ['shogun', 'shogun'],
+    ['tank', 'tank'],
+    ['priest', 'priest'],
+  ] as const;
+  const loaded = await Promise.all(
+    assets.map(([, fileName]) => {
+      const src = new URL(`${import.meta.env.BASE_URL}image/${fileName}.png`, window.location.href).href;
+      return Assets.load<Texture>(src);
+    }),
+  );
+  const textures = Object.fromEntries(
+    assets.map(([key], index) => [key, loaded[index]]),
+  ) as unknown as EntityTextures;
+  for (const texture of loaded) texture.source.scaleMode = 'nearest';
+  return textures;
+}
+
 async function main(): Promise<void> {
   const app = new Application();
   await app.init({
@@ -30,6 +54,7 @@ async function main(): Promise<void> {
   });
   document.getElementById('app')!.appendChild(app.canvas);
   const canvas = app.canvas as HTMLCanvasElement;
+  const entityTextures = await loadEntityTextures();
 
   // 縦画面をビューポートに収める（スマホ対応）。レイアウト確定前に0にならないよう
   // ResizeObserver で自己修復し、scale が正のときだけ反映する。
@@ -54,7 +79,7 @@ async function main(): Promise<void> {
   document.addEventListener('touchmove', blockTouch, { passive: false });
   document.addEventListener('gesturestart', (e) => e.preventDefault());
 
-  const renderer = new SessionRenderer(app.stage);
+  const renderer = new SessionRenderer(app.stage, entityTextures);
   const featureBossOnly = /[?&]bossrush\b/.test(location.search);
   let session: Session = titleSession(undefined, { featureBossOnly });
   const sfx = new GameSfx();
