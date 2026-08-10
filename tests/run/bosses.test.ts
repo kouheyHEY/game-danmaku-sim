@@ -217,7 +217,7 @@ describe('特徴ボス', () => {
     expect(s.boss.recoverUntil).toBeGreaterThan(s.world.time);
   });
 
-  it('プリーストBは中央へ移動して角度をずらした36方向の曲射弾を出し、Cは模倣して被ダメージを半減する', () => {
+  it('プリーストBは36方向の曲射弾を出し、Cは上部中央で自弾を反射しつつ通常ダメージを受ける', () => {
     const s = beginSession(6);
     s.world.ship.autoFire = false;
     debugSpawnBossKind(s, 'priest');
@@ -266,30 +266,39 @@ describe('特徴ボス', () => {
     expect(shifted.every((b) => b.angularVelocity === -0.32)).toBe(true);
     expect(s.boss.orbAngle).toBeCloseTo(Math.PI / 18);
 
-    debugPriestMode(s, 'duel');
-    expect(s.boss.mode).toBe('duel');
-    expect(s.boss.copiedPattern).not.toBeNull();
+    debugPriestMode(s, 'reflect');
+    expect(s.boss.mode).toBe('reflect');
+    expect(boss.reflectPlayerBullets).toBe(true);
     expect(boss.hitRadius).toBeLessThanOrEqual(10);
+
+    boss.pos = { x: 30, y: s.world.bounds.y + s.world.bounds.h * 0.45 };
+    stepSession(s, STILL, DT);
+    expect(boss.vel.x).toBeGreaterThan(0);
+    expect(boss.vel.y).toBeLessThan(0);
+    boss.pos = {
+      x: s.world.bounds.x + s.world.bounds.w / 2,
+      y: s.world.bounds.y + s.world.bounds.h * 0.18,
+    };
+    boss.vel = { x: 0, y: 0 };
+    stepSession(s, STILL, DT);
+    expect(boss.vel).toEqual({ x: 0, y: 0 });
+
     const hp0 = boss.hp;
     applyBossHit(s.boss, s.world, boss.id, 10);
-    expect(boss.hp).toBe(hp0 - 5);
-    stepFor(s, 0.2);
-    const copied = s.world.bullets.filter((b) => b.owner === 'enemy');
-    expect(copied.length).toBeGreaterThan(0);
-    expect(copied.length).toBeLessThanOrEqual(5);
-    expect(copied.every((b) => b.radius <= 4)).toBe(true);
+    expect(boss.hp).toBe(hp0 - 10);
 
     s.world.bullets = [{
       id: s.world.nextId++,
-      pos: { x: 25, y: boss.pos.y + 70 },
-      vel: { x: 0, y: -300 },
+      pos: { ...boss.pos },
+      vel: { x: 7, y: -300 },
       radius: 2,
       owner: 'player',
     }];
-    boss.pos.x = 25;
-    s.boss.nextDodgeAt = s.world.time;
+    const hpBeforeReflect = boss.hp;
     stepSession(s, STILL, DT);
-    expect(s.boss.dodgeDirection).toBe(1);
-    expect(boss.vel.x).toBeGreaterThan(0);
+    const reflected = s.world.bullets.find((b) => b.style === 'reflected');
+    expect(reflected?.owner).toBe('enemy');
+    expect(reflected?.vel).toEqual({ x: -7, y: 300 });
+    expect(boss.hp).toBe(hpBeforeReflect - s.loadout.weapon.damage);
   });
 });

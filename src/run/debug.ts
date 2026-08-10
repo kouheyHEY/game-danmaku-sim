@@ -1,4 +1,4 @@
-import { multiplierForPriestDefeats, scoreForDodged, spawnBoss, type Session } from './session';
+import { IFRAME, multiplierForPriestDefeats, scoreForDodged, spawnBoss, type Session } from './session';
 import { makeMob } from './content';
 import {
   cleanupBoss, forceBossEvent, forcePriestMode,
@@ -39,7 +39,7 @@ export function debugTriggerBossEvent(s: Session): void {
   if (s.boss) forceBossEvent(s.boss, s.world);
 }
 
-export function debugPriestMode(s: Session, mode: 'chase' | 'orb' | 'duel'): void {
+export function debugPriestMode(s: Session, mode: 'chase' | 'orb' | 'reflect'): void {
   if (s.boss?.kind === 'priest') forcePriestMode(s.boss as PriestBoss, s.world, s.loadout, mode);
 }
 
@@ -86,7 +86,7 @@ export function debugHurt(s: Session): void {
   if (s.world.time < ship.invulnUntil) return;
   ship.hp -= 1;
   ship.deathPos = { x: ship.pos.x, y: ship.pos.y };
-  ship.invulnUntil = s.world.time + 2.0;
+  ship.invulnUntil = s.world.time + IFRAME;
   ship.respawnUntil = s.world.time + 0.7;
   if (ship.hp <= 0) s.phase = 'gameover';
 }

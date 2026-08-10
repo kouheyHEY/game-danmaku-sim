@@ -11,7 +11,7 @@ import {
   makeBossEncounter, prepareBossStep, takeBossNotice, type BossEncounter, type BossKind,
 } from './bosses';
 
-export const IFRAME = 2.0; // 被弾後の無敵(点滅) [s]
+export const IFRAME = 2.5; // 被弾後の無敵(点滅) [s]
 export const RESPAWN_TIME = 0.7; // 画面下から復帰しきるまで [s]
 const BOSS_FIRST = 12; // 最初のボスまで [s]
 const BOSS_INTERVAL = 16; // 撃破後、次のボスまで [s]

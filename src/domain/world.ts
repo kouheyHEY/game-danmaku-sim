@@ -217,6 +217,12 @@ function detectCollisions(world: World): CollisionEvent[] {
       const enemy = world.enemies.find((e) => e.targetable !== false && circlesOverlap(b.pos, b.radius, e.pos, e.hitRadius));
       if (enemy) {
         events.push({ kind: 'bullet-hits-enemy', bullet: b.id, enemy: enemy.id, owner: 'player' });
+        if (enemy.reflectPlayerBullets) {
+          b.owner = 'enemy';
+          b.vel = { x: -b.vel.x, y: -b.vel.y };
+          b.style = 'reflected';
+          survivors.push(b);
+        }
         continue;
       }
     }

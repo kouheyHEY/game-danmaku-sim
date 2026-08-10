@@ -13,6 +13,7 @@ import {
 } from '../run/debug';
 import { BOSS_NAMES, BOSS_ORDER } from '../run/bosses';
 import { nextDragTarget } from '../input/drag';
+import { GameSfx } from '../audio/sfx';
 
 const STEP = 1 / 120; // 固定タイムステップ（決定論・当たり判定の安定）
 const MAX_FRAME = 0.25; // スパイク時の暴走防止
@@ -56,6 +57,8 @@ async function main(): Promise<void> {
   const renderer = new SessionRenderer(app.stage);
   const featureBossOnly = /[?&]bossrush\b/.test(location.search);
   let session: Session = titleSession(undefined, { featureBossOnly });
+  const sfx = new GameSfx();
+  sfx.reset(session);
   let acc = 0;
 
   // ドラッグで自機を相対追従。復帰スライド完了時は指へ瞬間移動しないようつかみ直す。
@@ -82,9 +85,11 @@ async function main(): Promise<void> {
   };
   canvas.tabIndex = 0;
   canvas.addEventListener('pointerdown', (e) => {
+    void sfx.unlock();
     canvas.focus();
     if (session.phase === 'title' || session.phase === 'gameover') {
       session = beginSession(undefined, { featureBossOnly: session.featureBossOnly }); // Tap to Start / restart
+      sfx.reset(session);
       acc = 0;
       wasLocked = false;
       return;
@@ -108,7 +113,7 @@ async function main(): Promise<void> {
     if (session.phase === 'reward') {
       const index = specialRewardCardRects().findIndex((r) =>
         p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
-      if (index >= 0) chooseSpecialUpgrade(session, index);
+      if (index >= 0 && chooseSpecialUpgrade(session, index)) sfx.play('power-up');
       return;
     }
     pointerActive = true;
@@ -129,6 +134,7 @@ async function main(): Promise<void> {
 
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() !== 'p' && e.key !== 'Escape') return;
+    void sfx.unlock();
     if (session.phase === 'playing') pauseSession(session);
     else if (session.phase === 'paused') resumeSession(session);
     else return;
@@ -142,20 +148,20 @@ async function main(): Promise<void> {
     const buttons: DebugButton[] = [
       ...BOSS_ORDER.map((kind) => ({ label: `BOSS ${BOSS_NAMES[kind]}`, onClick: () => debugSpawnBossKind(session, kind) })),
       { label: 'ボスイベント発動', onClick: () => debugTriggerBossEvent(session) },
-      { label: '大ボス連戦開始', onClick: () => { session = beginSession(undefined, { featureBossOnly: true }); acc = 0; stopDragging(); } },
+      { label: '大ボス連戦開始', onClick: () => { void sfx.unlock(); session = beginSession(undefined, { featureBossOnly: true }); sfx.reset(session); acc = 0; stopDragging(); } },
       { label: 'プリーストA 追跡', onClick: () => debugPriestMode(session, 'chase') },
       { label: 'プリーストB 旋回弾', onClick: () => debugPriestMode(session, 'orb') },
-      { label: 'プリーストC 決闘', onClick: () => debugPriestMode(session, 'duel') },
+      { label: 'プリーストC 反射', onClick: () => debugPriestMode(session, 'reflect') },
       { label: '雑魚出現', onClick: () => debugSpawnMob(session) },
-      { label: 'Lv+強化', onClick: () => debugLevelUp(session) },
+      { label: 'Lv+強化', onClick: () => { debugLevelUp(session); sfx.play('power-up'); } },
       { label: '全回復', onClick: () => debugFullHeal(session) },
-      { label: '最大HP+1', onClick: () => debugAddMaxHp(session, 1) },
+      { label: '最大HP+1', onClick: () => { debugAddMaxHp(session, 1); sfx.play('power-up'); } },
       { label: '被弾', onClick: () => debugHurt(session) },
       { label: '無敵', onClick: () => debugToggleInvuln(session) },
       { label: '弾消し', onClick: () => debugClearBullets(session) },
       { label: 'スコア+100', onClick: () => debugAddScore(session, 100) },
-      { label: 'リスタート', onClick: () => { session = beginSession(undefined, { featureBossOnly: session.featureBossOnly }); acc = 0; stopDragging(); } },
-      ...WEAPON_UPGRADES.map((u) => ({ label: '⚑' + u.name, onClick: () => debugGiveUpgrade(session, u) })),
+      { label: 'リスタート', onClick: () => { session = beginSession(undefined, { featureBossOnly: session.featureBossOnly }); sfx.reset(session); acc = 0; stopDragging(); } },
+      ...WEAPON_UPGRADES.map((u) => ({ label: '⚑' + u.name, onClick: () => { debugGiveUpgrade(session, u); sfx.play('power-up'); } })),
     ];
     mountDebugPanel(buttons);
   }
@@ -179,6 +185,7 @@ async function main(): Promise<void> {
     } else {
       wasLocked = false;
     }
+    sfx.update(session);
     renderer.draw(session);
   });
 }

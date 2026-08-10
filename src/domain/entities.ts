@@ -32,6 +32,7 @@ export interface Enemy {
   role?: 'mob' | 'boss' | 'sniper' | 'guard';
   visible?: boolean; // false の間は描画しない（スナイパーの潜伏など）
   targetable?: boolean; // false の間は自弾が透過する
+  reflectPlayerBullets?: boolean; // 当たった自弾を敵弾として来た方向へ返す
 }
 
 export interface Bullet {
@@ -48,7 +49,7 @@ export interface Bullet {
   angularVelocity?: number; // 速度ベクトルを毎秒回転させる角速度 [rad/s]
   curveUntil?: number; // この時刻まで angularVelocity を適用する
   expired?: boolean; // 特殊寿命を終え、次の整理で消える
-  style?: 'normal' | 'reversa' | 'sniper' | 'wave' | 'orb' | 'side' | 'tank';
+  style?: 'normal' | 'reversa' | 'sniper' | 'wave' | 'orb' | 'side' | 'tank' | 'reflected';
 }
 
 /** プレイヤーの1フレーム入力。方向(-1..1)・発射・タッチ目標位置。 */

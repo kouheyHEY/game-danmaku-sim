@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   titleSession, beginSession, stepSession, chooseSpecialUpgrade, pauseSession, resumeSession, spawnBoss,
-  multiplierForPriestDefeats, scoreForDodged,
+  IFRAME, multiplierForPriestDefeats, scoreForDodged,
 } from '../../src/run/session';
 import { randomWeaponUpgrade } from '../../src/run/upgrades';
 import { startingLoadout } from '../../src/run/loadout';
@@ -191,6 +191,20 @@ describe('Session：Tap to Start / ひたすら避ける / たまにボス', () 
     s.world.bullets.push(b);
     stepSession(s, STILL, DT);
     expect(s.phase).toBe('gameover');
+  });
+
+  it('被弾後は2.5秒間無敵になる', () => {
+    const s = beginSession(9);
+    s.world.bullets.push({
+      id: 999,
+      pos: { ...s.world.ship.pos },
+      vel: { x: 0, y: 0 },
+      radius: 6,
+      owner: 'enemy',
+    });
+    stepSession(s, STILL, DT);
+    expect(IFRAME).toBe(2.5);
+    expect(s.world.ship.invulnUntil - s.world.time).toBeCloseTo(IFRAME);
   });
 
   it('randomWeaponUpgrade：直線のうちは収束UPを選ばない', () => {

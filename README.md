@@ -1,5 +1,7 @@
 # danmaku-sim
 
+**v0.2.0 プロトタイプ** — 指一本で避けて、倒して、弾幕を育てる縦画面シューティング。
+
 ## Pause
 
 - 画面上部の `II` で一時停止し、停止中は画面タップで再開
@@ -55,3 +57,6 @@ npm run build    # 本番ビルド（dist/）
 
 `main` への push で GitHub Actions が自動ビルドし GitHub Pages へ公開する
 （[.github/workflows/deploy.yml](.github/workflows/deploy.yml)）。
+
+itch.io向けのカバー画像・説明文・HTML5 ZIPは、v0.2公開成果物として `release/` に生成する。
+素材とライセンスは [docs/credits.md](docs/credits.md) を参照。

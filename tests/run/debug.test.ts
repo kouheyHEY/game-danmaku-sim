@@ -92,7 +92,7 @@ describe('デバッグアクション', () => {
     expect(tank.hp).toBeLessThan(hp0);
 
     debugSpawnBossKind(s, 'priest');
-    debugPriestMode(s, 'duel');
-    expect(s.boss?.kind === 'priest' && s.boss.mode).toBe('duel');
+    debugPriestMode(s, 'reflect');
+    expect(s.boss?.kind === 'priest' && s.boss.mode).toBe('reflect');
   });
 });
