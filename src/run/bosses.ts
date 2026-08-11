@@ -532,7 +532,7 @@ function stepPriest(runtime: PriestBoss, world: World, loadout: PlayerLoadout, d
     const len = Math.max(1, Math.hypot(dx, dy));
     boss.vel = { x: (dx / len) * 72, y: (dy / len) * 72 };
     while (world.time >= runtime.nextShotAt) {
-      pushAimed(world, boss.pos, 118 + level * 3, 6, 1, 0, 'normal', { bouncesRemaining: 10 });
+      pushAimed(world, boss.pos, 118 + level * 3, 5, 1, 0, 'normal', { bouncesRemaining: 5 });
       runtime.nextShotAt += 0.44;
     }
   } else {

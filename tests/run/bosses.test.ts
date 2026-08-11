@@ -229,7 +229,8 @@ describe('特徴ボス', () => {
     s.boss.nextShotAt = s.world.time;
     stepSession(s, STILL, DT);
     const chaseBullet = s.world.bullets.find((b) => b.style === 'normal')!;
-    expect(chaseBullet.bouncesRemaining).toBe(10);
+    expect(chaseBullet.bouncesRemaining).toBe(5);
+    expect(chaseBullet.radius).toBe(5);
 
     boss.hp = boss.maxHp * 0.64;
     stepSession(s, STILL, DT);
@@ -296,9 +297,11 @@ describe('特徴ボス', () => {
     }];
     const hpBeforeReflect = boss.hp;
     stepSession(s, STILL, DT);
-    const reflected = s.world.bullets.find((b) => b.style === 'reflected');
-    expect(reflected?.owner).toBe('enemy');
-    expect(reflected?.vel).toEqual({ x: -7, y: 300 });
+    const reflected = s.world.bullets.filter((b) => b.style === 'reflected');
+    expect(reflected).toHaveLength(3);
+    expect(reflected.every((b) => b.owner === 'enemy')).toBe(true);
+    expect(reflected.some((b) => Math.abs(b.vel.x + 7) < 1e-9 && Math.abs(b.vel.y - 300) < 1e-9)).toBe(true);
+    expect(new Set(reflected.map((b) => Math.atan2(b.vel.y, b.vel.x).toFixed(4))).size).toBe(3);
     expect(boss.hp).toBe(hpBeforeReflect - s.loadout.weapon.damage);
   });
 });

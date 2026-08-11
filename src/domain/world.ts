@@ -218,10 +218,7 @@ function detectCollisions(world: World): CollisionEvent[] {
       if (enemy) {
         events.push({ kind: 'bullet-hits-enemy', bullet: b.id, enemy: enemy.id, owner: 'player' });
         if (enemy.reflectPlayerBullets) {
-          b.owner = 'enemy';
-          b.vel = { x: -b.vel.x, y: -b.vel.y };
-          b.style = 'reflected';
-          survivors.push(b);
+          reflectPlayerBullet(world, b, survivors);
         }
         continue;
       }
@@ -230,6 +227,24 @@ function detectCollisions(world: World): CollisionEvent[] {
   }
   world.bullets = survivors;
   return events;
+}
+
+const REFLECT_SPREAD = 0.18;
+
+/** 来た方向へ、中央弾を含む3方向の拡散弾として反射する。 */
+function reflectPlayerBullet(world: World, bullet: Bullet, survivors: Bullet[]): void {
+  const speed = Math.hypot(bullet.vel.x, bullet.vel.y);
+  const returnAngle = Math.atan2(-bullet.vel.y, -bullet.vel.x);
+  for (let lane = -1; lane <= 1; lane++) {
+    const reflected = lane === 0
+      ? bullet
+      : { ...bullet, id: world.nextId++, pos: { ...bullet.pos }, vel: { ...bullet.vel } };
+    const angle = returnAngle + lane * REFLECT_SPREAD;
+    reflected.owner = 'enemy';
+    reflected.vel = { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed };
+    reflected.style = 'reflected';
+    survivors.push(reflected);
+  }
 }
 
 export function bulletHitsEnemy(bullet: Bullet, enemy: Enemy): boolean {

@@ -100,8 +100,8 @@ export class SessionRenderer {
     this.shipSprite.width = playerTextureDisplaySize();
     this.shipSprite.height = playerTextureDisplaySize();
     stage.addChild(
-      this.enemySprites, this.bossG, this.enemyBulletsG, this.fxG,
-      this.shipSprite, this.shipG, this.playerBulletsG, this.hitboxG,
+      this.enemySprites, this.bossG, this.playerBulletsG, this.fxG,
+      this.shipSprite, this.shipG, this.enemyBulletsG, this.hitboxG,
     );
 
     this.hpText = new Text({ text: '', style: { ...style(15, 0xff8fa3), align: 'left' } });
