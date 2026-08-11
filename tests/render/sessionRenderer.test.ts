@@ -12,10 +12,10 @@ describe('boss texture display sizes', () => {
     expect(PRIEST_HIT_RADIUS).toBeLessThan(bossTextureDisplaySize('priest') / 2);
   });
 
-  it('renders the other feature bosses at half of their 96px source size', () => {
+  it('renders shogun and tank slightly larger than the other feature bosses', () => {
     expect(bossTextureDisplaySize('reversa')).toBe(48);
     expect(bossTextureDisplaySize('sniper')).toBe(48);
-    expect(bossTextureDisplaySize('shogun')).toBe(48);
-    expect(bossTextureDisplaySize('tank')).toBe(48);
+    expect(bossTextureDisplaySize('shogun')).toBe(56);
+    expect(bossTextureDisplaySize('tank')).toBe(56);
   });
 });

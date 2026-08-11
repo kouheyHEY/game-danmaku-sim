@@ -4,8 +4,10 @@ import { RESPAWN_TIME, type Session } from '../run/session';
 import { BOSS_NAMES, bossStatus } from '../run/bosses';
 import { formatMultiplier, formatScore } from './numberFormat';
 import { enemyHitbox } from '../domain/entities';
+import { GRAZE_RADIUS } from '../domain/world';
 import {
   FEATURE_BOSS_TEXTURE_DISPLAY_SIZE,
+  LARGE_BOSS_TEXTURE_DISPLAY_SIZE,
   PLAYER_TEXTURE_DISPLAY_SIZE,
   PRIEST_TEXTURE_DISPLAY_SIZE,
 } from '../spec/entityVisuals';
@@ -37,6 +39,7 @@ export interface EntityTextures extends Record<BossTextureKey, Texture> {
 }
 
 export function bossTextureDisplaySize(kind: BossTextureKey): number {
+  if (kind === 'shogun' || kind === 'tank') return LARGE_BOSS_TEXTURE_DISPLAY_SIZE;
   return kind === 'priest' ? PRIEST_TEXTURE_DISPLAY_SIZE : FEATURE_BOSS_TEXTURE_DISPLAY_SIZE;
 }
 
@@ -80,7 +83,7 @@ export class SessionRenderer {
   private readonly scoreLabel: Text;
   private readonly scoreNum: Text;
   private readonly multiplierText: Text;
-  private readonly dodgedText: Text;
+  private readonly grazeText: Text;
   private readonly killsText: Text;
   private readonly toast: Text;
   private readonly bossName: Text;
@@ -116,9 +119,9 @@ export class SessionRenderer {
     this.multiplierText = new Text({ text: '×1.00', style: style(12, 0xfde68a, true) });
     this.multiplierText.anchor.set(1, 0);
     this.multiplierText.position.set(FIELD.w - 10, 52);
-    this.dodgedText = new Text({ text: '避けた弾 0', style: style(13, 0x9aa3b8) });
-    this.dodgedText.anchor.set(1, 0);
-    this.dodgedText.position.set(FIELD.w - 10, 70);
+    this.grazeText = new Text({ text: 'かすり 0', style: style(13, 0x9aa3b8) });
+    this.grazeText.anchor.set(1, 0);
+    this.grazeText.position.set(FIELD.w - 10, 70);
     this.killsText = new Text({ text: '撃破 0', style: style(14, 0x9fe8b0) });
     this.killsText.anchor.set(1, 0);
     this.killsText.position.set(FIELD.w - 10, 90);
@@ -152,7 +155,7 @@ export class SessionRenderer {
     });
 
     stage.addChild(
-      this.hpText, this.scoreLabel, this.scoreNum, this.multiplierText, this.dodgedText, this.killsText,
+      this.hpText, this.scoreLabel, this.scoreNum, this.multiplierText, this.grazeText, this.killsText,
       this.toast, this.bossName, this.pauseG, this.pauseText,
       this.dim, this.rewardG, this.rewardTitle, ...this.rewardTexts, this.center,
     );
@@ -190,8 +193,9 @@ export class SessionRenderer {
         ? session.boss?.kind ?? null
         : null;
       const textureSize = textureKey ? bossTextureDisplaySize(textureKey) : null;
-      const visualRadius = textureSize ? textureSize / 2 : priest ? 13 : e.hitRadius;
-      if (strong) this.bossG.circle(e.pos.x, e.pos.y, visualRadius + 8).stroke({ color, width: 4, alpha: 0.55 });
+      const guard = e.role === 'guard';
+      const visualHalfWidth = guard ? 32 : textureSize ? textureSize / 2 : priest ? 13 : e.hitRadius;
+      const visualHalfHeight = guard ? 11 : textureSize ? textureSize / 2 : priest ? 13 : e.hitRadius;
       if (textureKey && textureSize) {
         let sprite = this.enemySpriteById.get(e.id);
         if (!sprite) {
@@ -206,12 +210,16 @@ export class SessionRenderer {
         sprite.height = textureSize;
         sprite.alpha = e.targetable === false ? 0.34 : 1;
         sprite.visible = true;
+      } else if (guard) {
+        this.bossG
+          .roundRect(e.pos.x - visualHalfWidth, e.pos.y - visualHalfHeight, visualHalfWidth * 2, visualHalfHeight * 2, 4)
+          .fill({ color, alpha: e.targetable === false ? 0.34 : 1 });
       } else {
-        this.bossG.circle(e.pos.x, e.pos.y, visualRadius).fill({ color, alpha: e.targetable === false ? 0.34 : 1 });
+        this.bossG.circle(e.pos.x, e.pos.y, visualHalfWidth).fill({ color, alpha: e.targetable === false ? 0.34 : 1 });
       }
-      const bw = Math.max(24, visualRadius * 2.4);
+      const bw = Math.max(24, visualHalfWidth * 2.4);
       const bx = e.pos.x - bw / 2;
-      const by = e.pos.y - visualRadius - 10;
+      const by = e.pos.y - visualHalfHeight - 10;
       this.bossG.rect(bx, by, bw, 4).fill({ color: 0x33384a });
       this.bossG.rect(bx, by, bw * Math.max(0, e.hp / e.maxHp), 4).fill({ color });
     }
@@ -249,6 +257,7 @@ export class SessionRenderer {
         });
       }
       this.hitboxG.circle(ship.pos.x, ship.pos.y, ship.hitRadius).stroke({ color: 0x7cff9b, width: 1.5, alpha: 1 });
+      this.hitboxG.circle(ship.pos.x, ship.pos.y, GRAZE_RADIUS).stroke({ color: 0x67e8f9, width: 1, alpha: 0.55 });
     }
 
     this.fxG.clear();
@@ -273,14 +282,14 @@ export class SessionRenderer {
     this.hpText.text = 'HP ' + '♥'.repeat(Math.max(0, ship.hp));
     this.scoreNum.text = formatScore(session.score);
     this.multiplierText.text = formatMultiplier(session.scoreMultiplier);
-    this.dodgedText.text = `避けた弾 ${formatScore(w.dodged)}`;
+    this.grazeText.text = `かすり ${formatScore(session.grazeCount)}`;
     this.killsText.text = `撃破 ${session.kills}`;
     const playing = session.phase === 'playing';
     const active = playing || session.phase === 'paused';
     this.scoreLabel.visible = active;
     this.scoreNum.visible = active;
     this.multiplierText.visible = active;
-    this.dodgedText.visible = active;
+    this.grazeText.visible = active;
     this.killsText.visible = active;
     this.hpText.visible = active;
     this.toast.text = session.toast?.text ?? '';
@@ -310,7 +319,7 @@ export class SessionRenderer {
       this.center.visible = true;
     } else if (session.phase === 'gameover') {
       this.dim.rect(0, 0, FIELD.w, FIELD.h).fill({ color: 0x0b0d12, alpha: 0.72 });
-      this.center.text = `GAME OVER\nスコア  ${formatScore(session.score)}  ${formatMultiplier(session.scoreMultiplier)}\n避けた弾  ${formatScore(w.dodged)}  ・  撃破  ${session.kills}\n\nTap to restart`;
+      this.center.text = `GAME OVER\nスコア  ${formatScore(session.score)}  ${formatMultiplier(session.scoreMultiplier)}\nかすり  ${formatScore(session.grazeCount)}  ・  撃破  ${session.kills}\n\nTap to restart`;
       this.center.visible = true;
     } else if (session.phase === 'reward') {
       this.dim.rect(0, 0, FIELD.w, FIELD.h).fill({ color: 0x0b0d12, alpha: 0.84 });

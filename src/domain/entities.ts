@@ -64,6 +64,7 @@ export interface Bullet {
   curveUntil?: number; // この時刻まで angularVelocity を適用する
   expired?: boolean; // 特殊寿命を終え、次の整理で消える
   style?: 'normal' | 'reversa' | 'sniper' | 'wave' | 'orb' | 'side' | 'tank' | 'reflected';
+  grazed?: boolean; // プレイヤーのかすりゾーンで一度得点済み
 }
 
 /** プレイヤーの1フレーム入力。方向(-1..1)・発射・タッチ目標位置。 */

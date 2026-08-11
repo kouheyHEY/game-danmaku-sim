@@ -6,4 +6,5 @@ import type { EntityId, Faction } from './entities';
  */
 export type CollisionEvent =
   | { kind: 'bullet-hits-ship'; bullet: EntityId; owner: Faction }
+  | { kind: 'bullet-grazes-ship'; bullet: EntityId; owner: Faction }
   | { kind: 'bullet-hits-enemy'; bullet: EntityId; enemy: EntityId; owner: Faction };

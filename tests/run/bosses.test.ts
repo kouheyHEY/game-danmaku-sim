@@ -154,8 +154,10 @@ describe('特徴ボス', () => {
     s.world.ship.invulnUntil = 1e9;
     debugSpawnBossKind(s, 'shogun');
     const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
+    const guard = s.world.enemies.find((e) => e.role === 'guard')!;
     expect(boss.targetable).toBe(false);
-    expect(s.world.enemies.some((e) => e.role === 'guard')).toBe(true);
+    expect(guard.maxHp).toBeGreaterThan(boss.maxHp);
+    expect(guard.hitbox).toEqual({ kind: 'rect', halfWidth: 32, halfHeight: 11 });
     stepFor(s, 2);
     const sideBullets = s.world.bullets.filter((b) => b.style === 'side');
     expect(sideBullets.length).toBeGreaterThanOrEqual(8);

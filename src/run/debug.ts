@@ -1,4 +1,4 @@
-import { IFRAME, multiplierForPriestDefeats, scoreForDodged, spawnBoss, type Session } from './session';
+import { IFRAME, multiplierForPriestDefeats, scoreForBase, spawnBoss, type Session } from './session';
 import { makeMob } from './content';
 import {
   cleanupBoss, forceBossEvent, forcePriestMode,
@@ -103,9 +103,9 @@ export function debugClearBullets(s: Session): void {
 }
 
 export function debugAddScore(s: Session, n: number): void {
-  s.world.dodged += n;
+  s.scoreBase += n;
   s.scoreMultiplier = multiplierForPriestDefeats(s.priestDefeats);
-  s.score = scoreForDodged(s.world.dodged, s.priestDefeats);
+  s.score = scoreForBase(s.scoreBase, s.priestDefeats);
 }
 
 export { WEAPON_UPGRADES };

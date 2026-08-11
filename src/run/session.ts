@@ -4,18 +4,16 @@ import { makeRng, type Rng } from '../domain/rng';
 import { FIELD } from '../spec/stage0';
 import { startingLoadout, type PlayerLoadout } from './loadout';
 import { buildWeapon } from './weapon';
-import { makeMob, mobInterval } from './content';
 import { drawSpecialUpgrades, randomWeaponUpgrade, type SpecialUpgrade } from './upgrades';
 import {
-  BOSS_NAMES, applyBossHit, bossDefeated, bossKindForLevel, cleanupBoss, featureBossKindForLevel, finishBossStep,
+  BOSS_NAMES, applyBossHit, bossDefeated, bossKindForLevel, cleanupBoss, finishBossStep,
   makeBossEncounter, prepareBossStep, takeBossNotice, type BossEncounter, type BossKind,
 } from './bosses';
 
 export const IFRAME = 2.5; // 被弾後の無敵(点滅) [s]
 export const RESPAWN_TIME = 0.7; // 画面下から復帰しきるまで [s]
-const BOSS_FIRST = 12; // 最初のボスまで [s]
-const BOSS_INTERVAL = 16; // 撃破後、次のボスまで [s]
-const BOSS_RUSH_INTERVAL = 1.2; // デバッグ連戦時の待ち時間 [s]
+const BOSS_FIRST = 0.8;
+const BOSS_INTERVAL = 1.2;
 const ESCAPE_MARGIN = 40; // 画面下にこれだけ抜けたら退場
 
 export type Phase = 'title' | 'playing' | 'paused' | 'reward' | 'gameover';
@@ -30,11 +28,13 @@ export interface Session {
   world: World;
   loadout: PlayerLoadout;
   level: number; // 撃破したボス数
-  score: number; // 避けた弾数 × scoreMultiplier
+  score: number; // scoreBase × scoreMultiplier
+  scoreBase: number; // 与えた実ダメージ + grazeCount × GRAZE_SCORE
+  damageDealt: number;
+  grazeCount: number;
   scoreMultiplier: number; // 1.1 ^ priestDefeats
   priestDefeats: number;
   kills: number; // 倒した敵の数（雑魚＋ボス）
-  nextMobAt: number;
   nextBossAt: number;
   bossId: number | null;
   bossKind: BossKind | null;
@@ -45,19 +45,16 @@ export interface Session {
   toast: Toast | null;
   rng: Rng;
   seed: number;
-  featureBossOnly: boolean;
 }
 
-export interface SessionOptions {
-  featureBossOnly?: boolean;
-}
+export const GRAZE_SCORE = 10;
 
 export function multiplierForPriestDefeats(priestDefeats: number): number {
   return 1.1 ** Math.max(0, Math.floor(priestDefeats));
 }
 
-export function scoreForDodged(dodged: number, priestDefeats: number): number {
-  return dodged * multiplierForPriestDefeats(priestDefeats);
+export function scoreForBase(scoreBase: number, priestDefeats: number): number {
+  return scoreBase * multiplierForPriestDefeats(priestDefeats);
 }
 
 function newWorld(loadout: PlayerLoadout, seed: number): World {
@@ -71,7 +68,7 @@ function newWorld(loadout: PlayerLoadout, seed: number): World {
   return world;
 }
 
-export function beginSession(seed = Date.now(), options: SessionOptions = {}): Session {
+export function beginSession(seed = Date.now()): Session {
   const s = seed >>> 0;
   const loadout = startingLoadout();
   const world = newWorld(loadout, s);
@@ -81,11 +78,13 @@ export function beginSession(seed = Date.now(), options: SessionOptions = {}): S
     loadout,
     level: 0,
     score: 0,
+    scoreBase: 0,
+    damageDealt: 0,
+    grazeCount: 0,
     scoreMultiplier: 1,
     priestDefeats: 0,
     kills: 0,
-    nextMobAt: options.featureBossOnly ? Number.POSITIVE_INFINITY : world.time + 0.4,
-    nextBossAt: world.time + (options.featureBossOnly ? 0.8 : BOSS_FIRST),
+    nextBossAt: world.time + BOSS_FIRST,
     bossId: null,
     bossKind: null,
     boss: null,
@@ -95,12 +94,11 @@ export function beginSession(seed = Date.now(), options: SessionOptions = {}): S
     toast: null,
     rng: makeRng(s),
     seed: s,
-    featureBossOnly: options.featureBossOnly ?? false,
   };
 }
 
-export function titleSession(seed = Date.now(), options: SessionOptions = {}): Session {
-  const s = beginSession(seed, options);
+export function titleSession(seed = Date.now()): Session {
+  const s = beginSession(seed);
   s.phase = 'title';
   return s;
 }
@@ -138,9 +136,16 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
     if (ev.kind === 'bullet-hits-enemy' && ev.owner === 'player') {
       const e = w.enemies.find((x) => x.id === ev.enemy);
       if (e) {
+        const hpBefore = Math.max(0, e.hp);
         if (session.boss?.enemyIds.includes(e.id)) applyBossHit(session.boss, w, e.id, session.loadout.weapon.damage);
         else e.hp -= session.loadout.weapon.damage;
+        const dealt = Math.min(hpBefore, session.loadout.weapon.damage);
+        session.damageDealt += dealt;
+        session.scoreBase += dealt;
       }
+    } else if (ev.kind === 'bullet-grazes-ship' && ev.owner === 'enemy') {
+      session.grazeCount += 1;
+      session.scoreBase += GRAZE_SCORE;
     } else if (ev.kind === 'bullet-hits-ship' && ev.owner === 'enemy') {
       if (w.time >= ship.invulnUntil) {
         ship.hp -= 1;
@@ -171,7 +176,7 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
     return e.pos.y <= bottom; // 下に抜けた雑魚は退場（撃破ではない）
   });
   session.kills += killed;
-  session.score = scoreForDodged(w.dodged, session.priestDefeats);
+  session.score = scoreForBase(session.scoreBase, session.priestDefeats);
   if (session.toast && w.time >= session.toast.until) session.toast = null;
 
   const defeatedBoss = session.boss && bossDefeated(session.boss, w) ? session.boss : null;
@@ -181,7 +186,7 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
     if (defeatedBoss.kind === 'priest') {
       session.priestDefeats += 1;
       session.scoreMultiplier = multiplierForPriestDefeats(session.priestDefeats);
-      session.score = scoreForDodged(w.dodged, session.priestDefeats);
+      session.score = scoreForBase(session.scoreBase, session.priestDefeats);
     }
     cleanupBoss(defeatedBoss, w, session.loadout);
     session.bossId = null;
@@ -197,13 +202,11 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
       session.specialChoices = drawSpecialUpgrades(session.rng, session.loadout);
       session.phase = 'reward';
       session.nextBossAt = Number.POSITIVE_INFINITY;
-      session.nextMobAt = Number.POSITIVE_INFINITY;
       session.toast = null;
     } else {
       const name = randomWeaponUpgrade(session.rng, session.loadout);
       ship.weapon = buildWeapon(session.loadout.weapon);
-      session.nextBossAt = w.time + (session.featureBossOnly ? BOSS_RUSH_INTERVAL : BOSS_INTERVAL);
-      session.nextMobAt = session.featureBossOnly ? Number.POSITIVE_INFINITY : w.time + 0.8; // 雑魚湧き再開
+      session.nextBossAt = w.time + BOSS_INTERVAL;
       session.toast = { text: `BOSS撃破！  +1HP ・ ${name}`, until: w.time + 2.4 };
     }
   }
@@ -213,20 +216,10 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
     return;
   }
 
-  // 出現：ボス中は雑魚を止める
+  // ボス専用進行。雑魚フェーズは持たない。
   if (session.phase === 'playing' && session.bossId == null) {
     if (w.time >= session.nextBossAt) {
-      // ボス時刻以降は雑魚の追加を止め、今いる雑魚が撃破・退場してから大ボスへ移る。
-      const mobsRemain = w.enemies.some((e) => e.role === 'mob');
-      if (!mobsRemain) {
-        const kind = session.featureBossOnly ? featureBossKindForLevel(session.level) : bossKindForLevel(session.level);
-        spawnBoss(session, kind, true);
-      }
-    } else if (w.time >= session.nextMobAt) {
-      const id = session.nextEnemyId++;
-      const x = w.bounds.x + 20 + session.rng.next() * (w.bounds.w - 40);
-      w.enemies.push(makeMob(id, x, session.level, w.bounds, session.rng));
-      session.nextMobAt = w.time + mobInterval(session.level);
+      spawnBoss(session, bossKindForLevel(session.level), true);
     }
   }
 
@@ -242,7 +235,6 @@ export function spawnBoss(session: Session, kind: BossKind, strong = false): boo
   session.bossId = spawn.encounter.primaryId;
   session.bossKind = kind;
   session.bossIsStrong = strong;
-  session.nextMobAt = Number.POSITIVE_INFINITY;
   session.toast = { text: `${strong ? '強敵 ' : ''}${BOSS_NAMES[kind]}`, until: w.time + 2.2 };
   return true;
 }
@@ -260,8 +252,7 @@ export function chooseSpecialUpgrade(session: Session, index: number): boolean {
   ship.weapon = buildWeapon(session.loadout.weapon);
   session.specialChoices = [];
   session.phase = 'playing';
-  session.nextBossAt = session.world.time + (session.featureBossOnly ? BOSS_RUSH_INTERVAL : BOSS_INTERVAL);
-  session.nextMobAt = session.featureBossOnly ? Number.POSITIVE_INFINITY : session.world.time + 0.8;
+  session.nextBossAt = session.world.time + BOSS_INTERVAL;
   session.toast = { text: `特別強化 ・ ${upgrade.name}`, until: session.world.time + 2.4 };
   return true;
 }

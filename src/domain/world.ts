@@ -15,11 +15,11 @@ export interface World {
   enemyPattern: Pattern | null; // 敵弾パターン
   emitterPos: Vec2; // 敵弾の発生源（上部中央固定）。敵の有無に依らず雨を降らせる
   firingEnabled: boolean;
-  dodged: number; // 画面外に消えた敵弾の数（スコアの基礎値）
   nextId: EntityId;
 }
 
 const CULL_MARGIN = 32;
+export const GRAZE_RADIUS = 22;
 
 export interface WorldInit {
   bounds: Rect;
@@ -39,7 +39,6 @@ export function makeWorld(init: WorldInit): World {
     enemyPattern: null,
     emitterPos: { x: init.bounds.x + init.bounds.w / 2, y: init.bounds.y + 8 },
     firingEnabled: true,
-    dodged: 0,
     nextId: 1,
   };
 }
@@ -198,7 +197,6 @@ function cullBullets(world: World): void {
       b.pos.y >= bounds.y - CULL_MARGIN &&
       b.pos.y <= bounds.y + bounds.h + CULL_MARGIN;
     if (inside) survivors.push(b);
-    else if (b.owner === 'enemy') world.dodged += 1; // 画面外に消えた敵弾＝避けた弾数
   }
   world.bullets = survivors;
 }
@@ -212,6 +210,10 @@ function detectCollisions(world: World): CollisionEvent[] {
       if (!shipInvuln && circlesOverlap(b.pos, b.radius, world.ship.pos, world.ship.hitRadius)) {
         events.push({ kind: 'bullet-hits-ship', bullet: b.id, owner: 'enemy' });
         continue; // 当たった弾は消す（同じ弾で連続失点しない）
+      }
+      if (!shipInvuln && !b.grazed && circlesOverlap(b.pos, b.radius, world.ship.pos, GRAZE_RADIUS)) {
+        b.grazed = true;
+        events.push({ kind: 'bullet-grazes-ship', bullet: b.id, owner: 'enemy' });
       }
     } else {
       const enemy = world.enemies.find((e) => e.targetable !== false && bulletHitsEnemy(b, e));

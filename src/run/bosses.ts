@@ -124,10 +124,6 @@ export function bossKindForLevel(level: number): BossKind {
   return BOSS_ORDER[level % BOSS_ORDER.length];
 }
 
-export function featureBossKindForLevel(level: number): FeatureBossKind {
-  return BOSS_ORDER[level % BOSS_ORDER.length];
-}
-
 export function makeBossEncounter(
   kind: BossKind,
   level: number,
@@ -181,13 +177,21 @@ export function makeBossEncounter(
   }
 
   if (kind === 'shogun') {
-    const boss = enemy(primaryId, { x: cx, y: top }, hp, strong ? 18 : 16);
+    const bossHp = Math.round(hp * 0.8);
+    const boss = enemy(primaryId, { x: cx, y: top }, bossHp, strong ? 18 : 16);
     boss.hitbox = texturedBossHitbox();
     boss.targetable = false;
     boss.vel.x = 42;
     const wallId = allocateId();
-    const wallHp = Math.round(hp * 0.65);
-    const wall = enemy(wallId, { x: cx, y: bounds.y + bounds.h * 0.28 }, wallHp, 24, 'guard');
+    const wallHp = Math.round(hp * 0.9);
+    const wall = enemy(
+      wallId,
+      { x: cx, y: bounds.y + bounds.h * 0.28 },
+      wallHp,
+      24,
+      'guard',
+      { kind: 'rect', halfWidth: 32, halfHeight: 11 },
+    );
     base.enemyIds.push(wallId);
     return {
       enemies: [boss, wall],

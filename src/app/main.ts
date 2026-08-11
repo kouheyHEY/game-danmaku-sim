@@ -10,11 +10,12 @@ import {
 import { mountDebugPanel, debugEnabled, type DebugButton } from '../render/debugPanel';
 import {
   debugSpawnBossKind, debugTriggerBossEvent, debugPriestMode,
-  debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
+  debugLevelUp, debugGiveUpgrade, debugFullHeal,
   debugAddMaxHp, debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, WEAPON_UPGRADES,
 } from '../run/debug';
 import { BOSS_NAMES, BOSS_ORDER } from '../run/bosses';
 import { nextDragTarget } from '../input/drag';
+import { ARROW_KEYS, arrowKeyInput } from '../input/keyboard';
 import { GameSfx } from '../audio/sfx';
 
 const STEP = 1 / 120; // 固定タイムステップ（決定論・当たり判定の安定）
@@ -81,8 +82,7 @@ async function main(): Promise<void> {
 
   const debug = debugEnabled();
   const renderer = new SessionRenderer(app.stage, entityTextures, debug);
-  const featureBossOnly = /[?&]bossrush\b/.test(location.search);
-  let session: Session = titleSession(undefined, { featureBossOnly });
+  let session: Session = titleSession();
   const sfx = new GameSfx();
   sfx.reset(session);
   let acc = 0;
@@ -94,6 +94,7 @@ async function main(): Promise<void> {
   let grab = { x: 0, y: 0 };
   let finger = { x: 0, y: 0 };
   let wasLocked = false;
+  const pressedArrows = new Set<string>();
   const toField = (e: PointerEvent) => {
     const r = canvas.getBoundingClientRect();
     return { x: ((e.clientX - r.left) / r.width) * FIELD.w, y: ((e.clientY - r.top) / r.height) * FIELD.h };
@@ -114,7 +115,7 @@ async function main(): Promise<void> {
     void sfx.unlock();
     canvas.focus();
     if (session.phase === 'title' || session.phase === 'gameover') {
-      session = beginSession(undefined, { featureBossOnly: session.featureBossOnly }); // Tap to Start / restart
+      session = beginSession(); // Tap to Start / restart
       sfx.reset(session);
       acc = 0;
       wasLocked = false;
@@ -159,6 +160,12 @@ async function main(): Promise<void> {
   canvas.addEventListener('pointercancel', stopDragging);
 
   window.addEventListener('keydown', (e) => {
+    if (ARROW_KEYS.has(e.key)) {
+      pressedArrows.add(e.key);
+      void sfx.unlock();
+      e.preventDefault();
+      return;
+    }
     if (e.key.toLowerCase() !== 'p' && e.key !== 'Escape') return;
     void sfx.unlock();
     if (session.phase === 'playing') pauseSession(session);
@@ -168,17 +175,21 @@ async function main(): Promise<void> {
     stopDragging();
     e.preventDefault();
   });
+  window.addEventListener('keyup', (e) => {
+    if (!ARROW_KEYS.has(e.key)) return;
+    pressedArrows.delete(e.key);
+    e.preventDefault();
+  });
+  window.addEventListener('blur', () => pressedArrows.clear());
 
   // デバッグパネル（開発時 or ?debug 付きURL）：任意の動作を好きに発動できる。
   if (debug) {
     const buttons: DebugButton[] = [
       ...BOSS_ORDER.map((kind) => ({ label: `BOSS ${BOSS_NAMES[kind]}`, onClick: () => debugSpawnBossKind(session, kind) })),
       { label: 'ボスイベント発動', onClick: () => debugTriggerBossEvent(session) },
-      { label: '大ボス連戦開始', onClick: () => { void sfx.unlock(); session = beginSession(undefined, { featureBossOnly: true }); sfx.reset(session); acc = 0; stopDragging(); } },
       { label: 'プリーストA 追跡', onClick: () => debugPriestMode(session, 'chase') },
       { label: 'プリーストB 旋回弾', onClick: () => debugPriestMode(session, 'orb') },
       { label: 'プリーストC 反射', onClick: () => debugPriestMode(session, 'reflect') },
-      { label: '雑魚出現', onClick: () => debugSpawnMob(session) },
       { label: 'Lv+強化', onClick: () => { debugLevelUp(session); sfx.play('power-up'); } },
       { label: '全回復', onClick: () => debugFullHeal(session) },
       { label: '最大HP+1', onClick: () => { debugAddMaxHp(session, 1); sfx.play('power-up'); } },
@@ -186,7 +197,7 @@ async function main(): Promise<void> {
       { label: '無敵', onClick: () => debugToggleInvuln(session) },
       { label: '弾消し', onClick: () => debugClearBullets(session) },
       { label: 'スコア+100', onClick: () => debugAddScore(session, 100) },
-      { label: 'リスタート', onClick: () => { session = beginSession(undefined, { featureBossOnly: session.featureBossOnly }); sfx.reset(session); acc = 0; stopDragging(); } },
+      { label: 'リスタート', onClick: () => { session = beginSession(); sfx.reset(session); acc = 0; stopDragging(); } },
       ...WEAPON_UPGRADES.map((u) => ({ label: '⚑' + u.name, onClick: () => { debugGiveUpgrade(session, u); sfx.play('power-up'); } })),
     ];
     mountDebugPanel(buttons);
@@ -202,7 +213,9 @@ async function main(): Promise<void> {
       wasLocked = locked;
 
       acc += Math.min(ticker.deltaMS / 1000, MAX_FRAME);
-      const input: ShipInput = dragging && target ? { moveX: 0, moveY: 0, target } : { moveX: 0, moveY: 0 };
+      const input: ShipInput = dragging && target
+        ? { moveX: 0, moveY: 0, target }
+        : arrowKeyInput(pressedArrows);
       while (acc >= STEP) {
         stepSession(session, input, STEP);
         acc -= STEP;
