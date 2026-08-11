@@ -11,8 +11,8 @@ const ENEMY_BULLET = 0xffd166;
 const ENEMY_BULLET_OUTLINE = 0x5c2d10;
 const PLAYER_BULLET = 0x67e8f9;
 const PLAYER_BULLET_VISUAL_MAX = 7;
-const PLAYER_TEXTURE_SIZE = 64;
-const BOSS_TEXTURE_SIZE = 96;
+const PLAYER_TEXTURE_SIZE = 32;
+const BOSS_TEXTURE_SIZE = 48;
 const PRIEST_TEXTURE_SIZE = 32;
 const BULLET_COLORS = {
   normal: ENEMY_BULLET,
@@ -35,6 +35,10 @@ export interface EntityTextures extends Record<BossTextureKey, Texture> {
 
 export function bossTextureDisplaySize(kind: BossTextureKey): number {
   return kind === 'priest' ? PRIEST_TEXTURE_SIZE : BOSS_TEXTURE_SIZE;
+}
+
+export function playerTextureDisplaySize(): number {
+  return PLAYER_TEXTURE_SIZE;
 }
 
 /** 描画とタップ判定で共有する、スマホ向けの大きな2択カード。 */
@@ -89,8 +93,8 @@ export class SessionRenderer {
     // 強化で自弾が大きく・多くなっても、危険情報が隠れない描画順を固定する。
     this.shipSprite = new Sprite(textures.player);
     this.shipSprite.anchor.set(0.5);
-    this.shipSprite.width = PLAYER_TEXTURE_SIZE;
-    this.shipSprite.height = PLAYER_TEXTURE_SIZE;
+    this.shipSprite.width = playerTextureDisplaySize();
+    this.shipSprite.height = playerTextureDisplaySize();
     stage.addChild(
       this.playerBulletsG, this.enemySprites, this.bossG, this.enemyBulletsG,
       this.fxG, this.shipSprite, this.shipG,
@@ -229,7 +233,7 @@ export class SessionRenderer {
       const a = inv ? 0.3 + 0.5 * ((Math.sin(w.time * 28) + 1) / 2) : 1;
       this.shipSprite.position.set(ship.pos.x, ship.pos.y);
       this.shipSprite.alpha = a;
-      // 見た目を64pxにしても、衝突判定は従来どおり ship.hitRadius（3px）のまま。
+      // 見た目を32pxにしても、衝突判定は従来どおり ship.hitRadius（3px）のまま。
       this.shipG.circle(ship.pos.x, ship.pos.y, ship.hitRadius).fill({ color: 0xffffff, alpha: a });
     }
 
