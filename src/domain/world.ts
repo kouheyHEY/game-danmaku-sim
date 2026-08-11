@@ -232,10 +232,13 @@ function detectCollisions(world: World): CollisionEvent[] {
 }
 
 const REFLECT_SPREAD = 0.18;
+const REFLECT_MAX_SPEED = 170;
+const REFLECT_MAX_RADIUS = 3;
 
 /** 来た方向へ、中央弾を含む3方向の拡散弾として反射する。 */
 function reflectPlayerBullet(world: World, bullet: Bullet, survivors: Bullet[]): void {
-  const speed = Math.hypot(bullet.vel.x, bullet.vel.y);
+  const speed = Math.min(REFLECT_MAX_SPEED, Math.hypot(bullet.vel.x, bullet.vel.y) * 0.55);
+  const radius = Math.min(REFLECT_MAX_RADIUS, Math.max(2, bullet.radius * 0.45));
   const returnAngle = Math.atan2(-bullet.vel.y, -bullet.vel.x);
   for (let lane = -1; lane <= 1; lane++) {
     const reflected = lane === 0
@@ -244,6 +247,7 @@ function reflectPlayerBullet(world: World, bullet: Bullet, survivors: Bullet[]):
     const angle = returnAngle + lane * REFLECT_SPREAD;
     reflected.owner = 'enemy';
     reflected.vel = { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed };
+    reflected.radius = radius;
     reflected.style = 'reflected';
     survivors.push(reflected);
   }

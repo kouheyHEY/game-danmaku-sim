@@ -1,4 +1,4 @@
-import { IFRAME, multiplierForPriestDefeats, scoreForBase, spawnBoss, type Session } from './session';
+import { applyPlayerHit, multiplierForPriestDefeats, scoreForBase, spawnBoss, type Session } from './session';
 import { makeMob } from './content';
 import {
   cleanupBoss, forceBossEvent, forcePriestMode,
@@ -82,13 +82,8 @@ export function debugAddMaxHp(s: Session, n: number): void {
 
 /** 自機に1ダメージ相当（被弾演出の確認）。 */
 export function debugHurt(s: Session): void {
-  const ship = s.world.ship;
-  if (s.world.time < ship.invulnUntil) return;
-  ship.hp -= 1;
-  ship.deathPos = { x: ship.pos.x, y: ship.pos.y };
-  ship.invulnUntil = s.world.time + IFRAME;
-  ship.respawnUntil = s.world.time + 0.7;
-  if (ship.hp <= 0) s.phase = 'gameover';
+  if (!applyPlayerHit(s)) return;
+  if (s.world.ship.hp <= 0) s.phase = 'gameover';
 }
 
 /** 無敵を ON/OFF トグル。 */

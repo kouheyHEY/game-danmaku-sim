@@ -94,6 +94,7 @@ export class SessionRenderer {
   private readonly rewardTitle: Text;
   private readonly rewardTexts: Text[];
   private readonly center: Text;
+  private readonly rankingText: Text;
 
   constructor(stage: Container, private readonly textures: EntityTextures, private readonly showHitboxes = false) {
     // 安全な自弾は奥、避けるべき敵弾は敵より手前、自機と白い当たり判定は最前面。
@@ -140,6 +141,12 @@ export class SessionRenderer {
     this.center = new Text({ text: '', style: style(28, 0xffffff, true) });
     this.center.anchor.set(0.5);
     this.center.position.set(FIELD.w / 2, FIELD.h * 0.44);
+    this.rankingText = new Text({
+      text: '',
+      style: { ...style(14, 0xe5e7eb), fontFamily: 'monospace', lineHeight: 21 },
+    });
+    this.rankingText.anchor.set(0.5, 0);
+    this.rankingText.position.set(FIELD.w / 2, 205);
 
     this.rewardTitle = new Text({ text: '特別強化を選択', style: style(24, 0xf1d4ff, true) });
     this.rewardTitle.anchor.set(0.5);
@@ -157,7 +164,7 @@ export class SessionRenderer {
     stage.addChild(
       this.hpText, this.scoreLabel, this.scoreNum, this.multiplierText, this.grazeText, this.killsText,
       this.toast, this.bossName, this.pauseG, this.pauseText,
-      this.dim, this.rewardG, this.rewardTitle, ...this.rewardTexts, this.center,
+      this.dim, this.rewardG, this.rewardTitle, ...this.rewardTexts, this.center, this.rankingText,
     );
   }
 
@@ -263,9 +270,16 @@ export class SessionRenderer {
     this.fxG.clear();
     if (w.time < ship.respawnUntil) {
       const p = Math.max(0, Math.min(1, 1 - (ship.respawnUntil - w.time) / RESPAWN_TIME));
-      const r = 8 + 40 * p;
-      this.fxG.circle(ship.deathPos.x, ship.deathPos.y, r).stroke({ color: 0xffd166, width: 3, alpha: (1 - p) * 0.8 });
-      this.fxG.circle(ship.deathPos.x, ship.deathPos.y, r * 0.55).stroke({ color: 0xffffff, width: 2, alpha: (1 - p) * 0.6 });
+      const burstRadius = 8 + 40 * p;
+      const waveProgress = Math.min(1, p / 0.72);
+      const waveRadius = 10 + Math.hypot(FIELD.w, FIELD.h) * waveProgress;
+      this.fxG.circle(ship.deathPos.x, ship.deathPos.y, waveRadius).stroke({
+        color: 0x67e8f9,
+        width: 4 - waveProgress * 2,
+        alpha: (1 - waveProgress) * 0.78,
+      });
+      this.fxG.circle(ship.deathPos.x, ship.deathPos.y, burstRadius).stroke({ color: 0xffd166, width: 3, alpha: (1 - p) * 0.8 });
+      this.fxG.circle(ship.deathPos.x, ship.deathPos.y, burstRadius * 0.55).stroke({ color: 0xffffff, width: 2, alpha: (1 - p) * 0.6 });
     }
 
     this.shipG.clear();
@@ -312,6 +326,8 @@ export class SessionRenderer {
     this.dim.clear();
     this.rewardG.clear();
     this.rewardTitle.visible = false;
+    this.rankingText.visible = false;
+    this.center.position.set(FIELD.w / 2, FIELD.h * 0.44);
     for (const text of this.rewardTexts) text.visible = false;
     if (session.phase === 'title') {
       this.dim.rect(0, 0, FIELD.w, FIELD.h).fill({ color: 0x0b0d12, alpha: 0.6 });
@@ -319,8 +335,14 @@ export class SessionRenderer {
       this.center.visible = true;
     } else if (session.phase === 'gameover') {
       this.dim.rect(0, 0, FIELD.w, FIELD.h).fill({ color: 0x0b0d12, alpha: 0.72 });
-      this.center.text = `GAME OVER\nスコア  ${formatScore(session.score)}  ${formatMultiplier(session.scoreMultiplier)}\nかすり  ${formatScore(session.grazeCount)}  ・  撃破  ${session.kills}\n\nTap to restart`;
+      const rank = session.currentRank == null ? '集計中' : `${session.currentRank}位`;
+      this.center.position.set(FIELD.w / 2, 92);
+      this.center.text = `GAME OVER\n順位 ${rank}  ・  スコア ${formatScore(session.score)}\n到達 ${session.reachedBossName || '集計中'}  ・  転生 ${session.priestDefeats}回`;
       this.center.visible = true;
+      const rows = session.leaderboard.map((entry, index) =>
+        `${String(index + 1).padStart(2)}位  ${formatScore(entry.score).padStart(9)}  ${entry.reachedBoss}  転生${entry.rebirths}`);
+      this.rankingText.text = `端末内スコアランキング TOP 10\n${rows.join('\n')}\n\nTap to restart`;
+      this.rankingText.visible = true;
     } else if (session.phase === 'reward') {
       this.dim.rect(0, 0, FIELD.w, FIELD.h).fill({ color: 0x0b0d12, alpha: 0.84 });
       this.rewardTitle.visible = true;

@@ -9,6 +9,7 @@ import {
   BOSS_NAMES, applyBossHit, bossDefeated, bossKindForLevel, cleanupBoss, finishBossStep,
   makeBossEncounter, prepareBossStep, takeBossNotice, type BossEncounter, type BossKind,
 } from './bosses';
+import type { LeaderboardEntry } from './leaderboard';
 
 export const IFRAME = 2.5; // 被弾後の無敵(点滅) [s]
 export const RESPAWN_TIME = 0.7; // 画面下から復帰しきるまで [s]
@@ -45,6 +46,9 @@ export interface Session {
   toast: Toast | null;
   rng: Rng;
   seed: number;
+  leaderboard: LeaderboardEntry[];
+  currentRank: number | null;
+  reachedBossName: string;
 }
 
 export const GRAZE_SCORE = 10;
@@ -94,6 +98,9 @@ export function beginSession(seed = Date.now()): Session {
     toast: null,
     rng: makeRng(s),
     seed: s,
+    leaderboard: [],
+    currentRank: null,
+    reachedBossName: '',
   };
 }
 
@@ -124,6 +131,19 @@ function respawnSlide(w: World): { x: number; y: number } {
   return { x: spawn.x, y: startY + (spawn.y - startY) * e };
 }
 
+/** 被弾処理を一箇所に集約し、死亡位置からの弾消し波動に合わせて敵弾を消去する。 */
+export function applyPlayerHit(session: Session): boolean {
+  const w = session.world;
+  const ship = w.ship;
+  if (w.time < ship.invulnUntil) return false;
+  ship.hp -= 1;
+  ship.deathPos = { x: ship.pos.x, y: ship.pos.y };
+  ship.invulnUntil = w.time + IFRAME;
+  ship.respawnUntil = w.time + RESPAWN_TIME;
+  w.bullets = w.bullets.filter((bullet) => bullet.owner !== 'enemy');
+  return true;
+}
+
 export function stepSession(session: Session, input: ShipInput, dt: number): void {
   if (session.phase !== 'playing') return;
   const w = session.world;
@@ -147,12 +167,7 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
       session.grazeCount += 1;
       session.scoreBase += GRAZE_SCORE;
     } else if (ev.kind === 'bullet-hits-ship' && ev.owner === 'enemy') {
-      if (w.time >= ship.invulnUntil) {
-        ship.hp -= 1;
-        ship.deathPos = { x: ship.pos.x, y: ship.pos.y };
-        ship.invulnUntil = w.time + IFRAME;
-        ship.respawnUntil = w.time + RESPAWN_TIME;
-      }
+      applyPlayerHit(session);
     }
   }
   if (session.boss) {

@@ -21,7 +21,7 @@ const ALL_CUES: SfxCue[] = [
 ];
 
 const VOLUME: Record<SfxCue, number> = {
-  'player-shot': 0.085,
+  'player-shot': 0.035,
   'enemy-shot-aimed': 0.05,
   'enemy-shot-burst': 0.045,
   'enemy-shot-heavy': 0.06,
@@ -31,7 +31,7 @@ const VOLUME: Record<SfxCue, number> = {
 };
 
 const MIN_INTERVAL: Record<SfxCue, number> = {
-  'player-shot': 75,
+  'player-shot': 90,
   'enemy-shot-aimed': 90,
   'enemy-shot-burst': 100,
   'enemy-shot-heavy': 120,

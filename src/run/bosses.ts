@@ -16,6 +16,7 @@ const PRIEST_ORB_HP_RATIO = 0.65;
 const PRIEST_DUEL_HP_RATIO = 0.25;
 const PRIEST_RADIAL_WAYS = 36;
 const PRIEST_RADIAL_INTERVAL = 1.8;
+const PRIEST_CHASE_SPEED = 54;
 export const BOSS_ORDER = ['reversa', 'sniper', 'shogun', 'tank', 'priest'] as const;
 export type FeatureBossKind = typeof BOSS_ORDER[number];
 export type BossKind = 'normal' | FeatureBossKind;
@@ -530,11 +531,31 @@ function stepPriest(runtime: PriestBoss, world: World, loadout: PlayerLoadout, d
     return;
   }
 
+  // プレイヤー復帰中は追跡と射撃を止め、次の攻防を中央から再開する。
+  if (world.time < world.ship.respawnUntil) {
+    const center = {
+      x: world.bounds.x + world.bounds.w / 2,
+      y: world.bounds.y + world.bounds.h / 2,
+    };
+    const dx = center.x - boss.pos.x;
+    const dy = center.y - boss.pos.y;
+    const distance = Math.hypot(dx, dy);
+    const returnSpeed = 96;
+    if (distance > Math.max(1, returnSpeed * dt)) {
+      boss.vel = { x: (dx / distance) * returnSpeed, y: (dy / distance) * returnSpeed };
+    } else {
+      boss.pos = center;
+      boss.vel = { x: 0, y: 0 };
+    }
+    runtime.nextShotAt = Math.max(runtime.nextShotAt, world.ship.respawnUntil + 0.25);
+    return;
+  }
+
   if (runtime.mode === 'chase') {
     const dx = world.ship.pos.x - boss.pos.x;
     const dy = world.ship.pos.y - boss.pos.y;
     const len = Math.max(1, Math.hypot(dx, dy));
-    boss.vel = { x: (dx / len) * 72, y: (dy / len) * 72 };
+    boss.vel = { x: (dx / len) * PRIEST_CHASE_SPEED, y: (dy / len) * PRIEST_CHASE_SPEED };
     while (world.time >= runtime.nextShotAt) {
       pushAimed(world, boss.pos, 118 + level * 3, 5, 1, 0, 'normal', { bouncesRemaining: 5 });
       runtime.nextShotAt += 0.44;

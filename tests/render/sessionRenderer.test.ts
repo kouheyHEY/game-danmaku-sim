@@ -7,8 +7,8 @@ describe('boss texture display sizes', () => {
     expect(playerTextureDisplaySize()).toBe(32);
   });
 
-  it('renders the priest at the same size as the other feature bosses', () => {
-    expect(bossTextureDisplaySize('priest')).toBe(48);
+  it('renders the priest slightly larger while keeping its hitbox small', () => {
+    expect(bossTextureDisplaySize('priest')).toBe(72);
     expect(PRIEST_HIT_RADIUS).toBeLessThan(bossTextureDisplaySize('priest') / 2);
   });
 

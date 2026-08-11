@@ -231,6 +231,7 @@ describe('特徴ボス', () => {
     s.boss.nextShotAt = s.world.time;
     stepSession(s, STILL, DT);
     const chaseBullet = s.world.bullets.find((b) => b.style === 'normal')!;
+    expect(Math.hypot(boss.vel.x, boss.vel.y)).toBeCloseTo(54);
     expect(chaseBullet.bouncesRemaining).toBe(5);
     expect(chaseBullet.radius).toBe(5);
 
@@ -302,8 +303,30 @@ describe('特徴ボス', () => {
     const reflected = s.world.bullets.filter((b) => b.style === 'reflected');
     expect(reflected).toHaveLength(3);
     expect(reflected.every((b) => b.owner === 'enemy')).toBe(true);
-    expect(reflected.some((b) => Math.abs(b.vel.x + 7) < 1e-9 && Math.abs(b.vel.y - 300) < 1e-9)).toBe(true);
+    expect(reflected.every((b) => Math.hypot(b.vel.x, b.vel.y) <= 170)).toBe(true);
+    expect(reflected.every((b) => b.radius <= 3)).toBe(true);
     expect(new Set(reflected.map((b) => Math.atan2(b.vel.y, b.vel.x).toFixed(4))).size).toBe(3);
     expect(boss.hp).toBe(hpBeforeReflect - s.loadout.weapon.damage);
+  });
+
+  it('プレイヤー復帰中のプリーストは追跡と射撃を止めて画面中央へ戻る', () => {
+    const s = beginSession(61);
+    s.world.ship.autoFire = false;
+    debugSpawnBossKind(s, 'priest');
+    if (s.boss?.kind !== 'priest') throw new Error('priest runtime expected');
+    const boss = s.world.enemies.find((e) => e.id === s.bossId)!;
+    boss.pos = { x: 40, y: 80 };
+    s.world.ship.pos = { x: s.world.bounds.x + s.world.bounds.w - 20, y: s.world.bounds.y + s.world.bounds.h - 20 };
+    s.world.ship.respawnUntil = s.world.time + 1;
+    s.boss.nextShotAt = s.world.time;
+
+    stepSession(s, STILL, DT);
+
+    const center = { x: s.world.bounds.x + s.world.bounds.w / 2, y: s.world.bounds.y + s.world.bounds.h / 2 };
+    expect(boss.vel.x).toBeGreaterThan(0);
+    expect(boss.vel.y).toBeGreaterThan(0);
+    expect(Math.hypot(center.x - boss.pos.x, center.y - boss.pos.y)).toBeLessThan(Math.hypot(center.x - 40, center.y - 80));
+    expect(s.world.bullets.filter((bullet) => bullet.owner === 'enemy')).toHaveLength(0);
+    expect(s.boss.nextShotAt).toBeGreaterThan(s.world.ship.respawnUntil);
   });
 });

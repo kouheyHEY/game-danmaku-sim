@@ -51,9 +51,9 @@ function addAmbience(samples, echoMs, mix) {
 }
 
 const drySounds = {
-  'player-shot': tone(0.075, (t, d, phase) => {
-    const frequency = 1180 - 620 * (t / d);
-    return { frequency, value: square(phase, 0.28) * envelope(t, d, 0.003, 1.1) * 0.34 };
+  'player-shot': tone(0.045, (t, d, phase) => {
+    const frequency = 920 - 360 * (t / d);
+    return { frequency, value: square(phase, 0.32) * envelope(t, d, 0.008, 1.8) * 0.18 };
   }),
   'enemy-shot-aimed': tone(0.14, (t, d, phase) => {
     const frequency = 420 - 150 * (t / d);
@@ -90,7 +90,7 @@ const drySounds = {
 };
 
 const ambience = {
-  'player-shot': { echoMs: 32, mix: 0.10 },
+  'player-shot': { echoMs: 18, mix: 0.02 },
   'enemy-shot-aimed': { echoMs: 44, mix: 0.12 },
   'enemy-shot-burst': { echoMs: 40, mix: 0.09 },
   'enemy-shot-heavy': { echoMs: 52, mix: 0.14 },

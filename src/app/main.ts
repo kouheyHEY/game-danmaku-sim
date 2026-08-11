@@ -13,10 +13,11 @@ import {
   debugLevelUp, debugGiveUpgrade, debugFullHeal,
   debugAddMaxHp, debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, WEAPON_UPGRADES,
 } from '../run/debug';
-import { BOSS_NAMES, BOSS_ORDER } from '../run/bosses';
+import { BOSS_NAMES, BOSS_ORDER, bossKindForLevel } from '../run/bosses';
 import { nextDragTarget } from '../input/drag';
 import { ARROW_KEYS, arrowKeyInput } from '../input/keyboard';
 import { GameSfx } from '../audio/sfx';
+import { makeLeaderboardEntry, recordScore } from '../run/leaderboard';
 
 const STEP = 1 / 120; // 固定タイムステップ（決定論・当たり判定の安定）
 const MAX_FRAME = 0.25; // スパイク時の暴走防止
@@ -86,6 +87,18 @@ async function main(): Promise<void> {
   const sfx = new GameSfx();
   sfx.reset(session);
   let acc = 0;
+  let rankedSession: Session | null = null;
+
+  const updateLeaderboard = () => {
+    if (session.phase !== 'gameover' || rankedSession === session) return;
+    rankedSession = session;
+    const reachedKind = session.bossKind ?? bossKindForLevel(session.level);
+    session.reachedBossName = BOSS_NAMES[reachedKind];
+    const entry = makeLeaderboardEntry(session.score, session.reachedBossName, session.priestDefeats);
+    const result = recordScore(window.localStorage, entry);
+    session.leaderboard = result.entries;
+    session.currentRank = result.rank;
+  };
 
   // ドラッグで自機を相対追従。復帰スライド完了時は指へ瞬間移動しないようつかみ直す。
   let dragging = false;
@@ -224,6 +237,7 @@ async function main(): Promise<void> {
     } else {
       wasLocked = false;
     }
+    updateLeaderboard();
     sfx.update(session);
     renderer.draw(session);
   });

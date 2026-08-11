@@ -146,4 +146,19 @@ describe('boss-only session', () => {
     expect(session.phase).toBe('gameover');
     expect(session.world.ship.invulnUntil - session.world.time).toBeCloseTo(IFRAME);
   });
+
+  it('clears every enemy bullet with the player-centered hit wave', () => {
+    const session = beginSession(8);
+    const deathPos = { ...session.world.ship.pos };
+    const hit: Bullet = { id: 1001, pos: { ...session.world.ship.pos }, vel: { x: 0, y: 0 }, radius: 6, owner: 'enemy' };
+    const distant: Bullet = { id: 1002, pos: { x: 30, y: 30 }, vel: { x: 0, y: 0 }, radius: 6, owner: 'enemy' };
+    const player: Bullet = { id: 1003, pos: { x: 40, y: 40 }, vel: { x: 0, y: -100 }, radius: 3, owner: 'player' };
+    session.world.bullets.push(hit, distant, player);
+
+    stepSession(session, STILL, DT);
+
+    expect(session.world.ship.deathPos).toEqual(deathPos);
+    expect(session.world.bullets.every((bullet) => bullet.owner === 'player')).toBe(true);
+    expect(session.world.bullets).toContain(player);
+  });
 });
