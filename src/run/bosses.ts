@@ -1,9 +1,10 @@
-import type { Bullet, Enemy, ShipInput } from '../domain/entities';
+import type { Bullet, Enemy, EnemyHitbox, ShipInput } from '../domain/entities';
 import { clamp, type Rect, type Vec2 } from '../domain/math';
 import type { World } from '../domain/world';
 import type { Rng } from '../domain/rng';
 import { makeBoss, makeStrongBoss } from './content';
 import type { PlayerLoadout } from './loadout';
+import { FEATURE_BOSS_TEXTURE_DISPLAY_SIZE, PRIEST_HIT_RADIUS } from '../spec/entityVisuals';
 
 const REVERSA_INTERVAL = 0.52;
 const REVERSA_WAYS = 5;
@@ -96,12 +97,14 @@ function enemy(
   hp: number,
   hitRadius: number,
   role: Enemy['role'] = 'boss',
+  hitbox?: EnemyHitbox,
 ): Enemy {
   return {
     id,
     pos,
     vel: { x: 0, y: 0 },
     hitRadius,
+    hitbox,
     hp,
     maxHp: hp,
     pattern: null,
@@ -110,6 +113,12 @@ function enemy(
     targetable: true,
   };
 }
+
+const texturedBossHitbox = (): EnemyHitbox => ({
+  kind: 'rect',
+  halfWidth: FEATURE_BOSS_TEXTURE_DISPLAY_SIZE / 2,
+  halfHeight: FEATURE_BOSS_TEXTURE_DISPLAY_SIZE / 2,
+});
 
 export function bossKindForLevel(level: number): BossKind {
   return BOSS_ORDER[level % BOSS_ORDER.length];
@@ -146,6 +155,7 @@ export function makeBossEncounter(
     const e = makeStrongBoss(primaryId, level, bounds, rng);
     e.role = 'boss';
     e.hitRadius = strong ? 18 : 16;
+    e.hitbox = texturedBossHitbox();
     e.pattern = null;
     e.vel.x = 24;
     return { enemies: [e], encounter: { ...base, kind, nextShotAt: now + 0.6, reversing: false } };
@@ -160,7 +170,7 @@ export function makeBossEncounter(
       const laneCenter = bounds.x + bounds.w * ((i + 0.5) / 3);
       const x = laneCenter + (rng.next() - 0.5) * bounds.w * 0.18;
       const y = top + (rng.next() - 0.5) * bounds.h * 0.12;
-      const e = enemy(id, { x, y }, eachHp, 12, 'sniper');
+      const e = enemy(id, { x, y }, eachHp, 12, 'sniper', texturedBossHitbox());
       e.visible = false;
       e.targetable = false;
       enemies.push(e);
@@ -172,6 +182,7 @@ export function makeBossEncounter(
 
   if (kind === 'shogun') {
     const boss = enemy(primaryId, { x: cx, y: top }, hp, strong ? 18 : 16);
+    boss.hitbox = texturedBossHitbox();
     boss.targetable = false;
     boss.vel.x = 42;
     const wallId = allocateId();
@@ -190,11 +201,19 @@ export function makeBossEncounter(
   if (kind === 'tank') {
     const tankHp = Math.round(hp * 3);
     const e = enemy(primaryId, { x: cx, y: top }, tankHp, strong ? 20 : 18);
+    e.hitbox = texturedBossHitbox();
     e.vel.x = 30;
     return { enemies: [e], encounter: { ...base, kind, stage: 0, nextShotAt: now + 1, rebound: false, recoverUntil: 0 } };
   }
 
-  const priest = enemy(primaryId, { x: cx, y: top }, Math.round(hp * PRIEST_HP_MULTIPLIER), 10);
+  const priest = enemy(
+    primaryId,
+    { x: cx, y: top },
+    Math.round(hp * PRIEST_HP_MULTIPLIER),
+    10,
+    'boss',
+    { kind: 'circle', radius: PRIEST_HIT_RADIUS },
+  );
   return {
     enemies: [priest],
     encounter: {

@@ -79,7 +79,8 @@ async function main(): Promise<void> {
   document.addEventListener('touchmove', blockTouch, { passive: false });
   document.addEventListener('gesturestart', (e) => e.preventDefault());
 
-  const renderer = new SessionRenderer(app.stage, entityTextures);
+  const debug = debugEnabled();
+  const renderer = new SessionRenderer(app.stage, entityTextures, debug);
   const featureBossOnly = /[?&]bossrush\b/.test(location.search);
   let session: Session = titleSession(undefined, { featureBossOnly });
   const sfx = new GameSfx();
@@ -169,7 +170,7 @@ async function main(): Promise<void> {
   });
 
   // デバッグパネル（開発時 or ?debug 付きURL）：任意の動作を好きに発動できる。
-  if (debugEnabled()) {
+  if (debug) {
     const buttons: DebugButton[] = [
       ...BOSS_ORDER.map((kind) => ({ label: `BOSS ${BOSS_NAMES[kind]}`, onClick: () => debugSpawnBossKind(session, kind) })),
       { label: 'ボスイベント発動', onClick: () => debugTriggerBossEvent(session) },

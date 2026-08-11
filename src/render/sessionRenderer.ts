@@ -3,6 +3,12 @@ import { FIELD } from '../spec/stage0';
 import { RESPAWN_TIME, type Session } from '../run/session';
 import { BOSS_NAMES, bossStatus } from '../run/bosses';
 import { formatMultiplier, formatScore } from './numberFormat';
+import { enemyHitbox } from '../domain/entities';
+import {
+  FEATURE_BOSS_TEXTURE_DISPLAY_SIZE,
+  PLAYER_TEXTURE_DISPLAY_SIZE,
+  PRIEST_TEXTURE_DISPLAY_SIZE,
+} from '../spec/entityVisuals';
 
 const BOSS = 0xff5d73;
 const STRONG_BOSS = 0xc084fc;
@@ -11,9 +17,6 @@ const ENEMY_BULLET = 0xffd166;
 const ENEMY_BULLET_OUTLINE = 0x5c2d10;
 const PLAYER_BULLET = 0x67e8f9;
 const PLAYER_BULLET_VISUAL_MAX = 7;
-const PLAYER_TEXTURE_SIZE = 32;
-const BOSS_TEXTURE_SIZE = 48;
-const PRIEST_TEXTURE_SIZE = 32;
 const BULLET_COLORS = {
   normal: ENEMY_BULLET,
   reversa: 0xf0abfc,
@@ -34,11 +37,11 @@ export interface EntityTextures extends Record<BossTextureKey, Texture> {
 }
 
 export function bossTextureDisplaySize(kind: BossTextureKey): number {
-  return kind === 'priest' ? PRIEST_TEXTURE_SIZE : BOSS_TEXTURE_SIZE;
+  return kind === 'priest' ? PRIEST_TEXTURE_DISPLAY_SIZE : FEATURE_BOSS_TEXTURE_DISPLAY_SIZE;
 }
 
 export function playerTextureDisplaySize(): number {
-  return PLAYER_TEXTURE_SIZE;
+  return PLAYER_TEXTURE_DISPLAY_SIZE;
 }
 
 /** 描画とタップ判定で共有する、スマホ向けの大きな2択カード。 */
@@ -69,6 +72,7 @@ export class SessionRenderer {
   private readonly fxG = new Graphics();
   private readonly bossG = new Graphics();
   private readonly shipG = new Graphics();
+  private readonly hitboxG = new Graphics();
   private readonly enemySprites = new Container();
   private readonly enemySpriteById = new Map<number, Sprite>();
   private readonly shipSprite: Sprite;
@@ -88,7 +92,7 @@ export class SessionRenderer {
   private readonly rewardTexts: Text[];
   private readonly center: Text;
 
-  constructor(stage: Container, private readonly textures: EntityTextures) {
+  constructor(stage: Container, private readonly textures: EntityTextures, private readonly showHitboxes = false) {
     // 安全な自弾は奥、避けるべき敵弾は敵より手前、自機と白い当たり判定は最前面。
     // 強化で自弾が大きく・多くなっても、危険情報が隠れない描画順を固定する。
     this.shipSprite = new Sprite(textures.player);
@@ -96,8 +100,8 @@ export class SessionRenderer {
     this.shipSprite.width = playerTextureDisplaySize();
     this.shipSprite.height = playerTextureDisplaySize();
     stage.addChild(
-      this.playerBulletsG, this.enemySprites, this.bossG, this.enemyBulletsG,
-      this.fxG, this.shipSprite, this.shipG,
+      this.enemySprites, this.bossG, this.enemyBulletsG, this.fxG,
+      this.shipSprite, this.shipG, this.playerBulletsG, this.hitboxG,
     );
 
     this.hpText = new Text({ text: '', style: { ...style(15, 0xff8fa3), align: 'left' } });
@@ -216,6 +220,35 @@ export class SessionRenderer {
       sprite.removeFromParent();
       sprite.destroy();
       this.enemySpriteById.delete(id);
+    }
+
+    this.hitboxG.clear();
+    if (this.showHitboxes) {
+      for (const e of w.enemies) {
+        if (e.visible === false) continue;
+        const hitbox = enemyHitbox(e);
+        const alpha = e.targetable === false ? 0.28 : 0.9;
+        if (hitbox.kind === 'circle') {
+          this.hitboxG.circle(e.pos.x, e.pos.y, hitbox.radius).stroke({ color: 0xff4fd8, width: 1.5, alpha });
+        } else {
+          this.hitboxG
+            .rect(
+              e.pos.x - hitbox.halfWidth,
+              e.pos.y - hitbox.halfHeight,
+              hitbox.halfWidth * 2,
+              hitbox.halfHeight * 2,
+            )
+            .stroke({ color: 0xff4fd8, width: 1.5, alpha });
+        }
+      }
+      for (const b of w.bullets) {
+        this.hitboxG.circle(b.pos.x, b.pos.y, b.radius).stroke({
+          color: b.owner === 'player' ? 0x67e8f9 : 0xffd166,
+          width: 1,
+          alpha: 0.55,
+        });
+      }
+      this.hitboxG.circle(ship.pos.x, ship.pos.y, ship.hitRadius).stroke({ color: 0x7cff9b, width: 1.5, alpha: 1 });
     }
 
     this.fxG.clear();

@@ -1,5 +1,5 @@
-import { circlesOverlap, clamp, type Rect, type Vec2 } from './math';
-import type { Bullet, Enemy, EntityId, Ship, ShipInput } from './entities';
+import { circleRectOverlap, circlesOverlap, clamp, type Rect, type Vec2 } from './math';
+import { enemyHitbox, type Bullet, type Enemy, type EntityId, type Ship, type ShipInput } from './entities';
 import { oneWay, type Pattern } from './pattern';
 import type { CollisionEvent } from './collision';
 import { makeRng, type Rng } from './rng';
@@ -214,7 +214,7 @@ function detectCollisions(world: World): CollisionEvent[] {
         continue; // 当たった弾は消す（同じ弾で連続失点しない）
       }
     } else {
-      const enemy = world.enemies.find((e) => e.targetable !== false && circlesOverlap(b.pos, b.radius, e.pos, e.hitRadius));
+      const enemy = world.enemies.find((e) => e.targetable !== false && bulletHitsEnemy(b, e));
       if (enemy) {
         events.push({ kind: 'bullet-hits-enemy', bullet: b.id, enemy: enemy.id, owner: 'player' });
         if (enemy.reflectPlayerBullets) {
@@ -230,6 +230,13 @@ function detectCollisions(world: World): CollisionEvent[] {
   }
   world.bullets = survivors;
   return events;
+}
+
+export function bulletHitsEnemy(bullet: Bullet, enemy: Enemy): boolean {
+  const hitbox = enemyHitbox(enemy);
+  return hitbox.kind === 'circle'
+    ? circlesOverlap(bullet.pos, bullet.radius, enemy.pos, hitbox.radius)
+    : circleRectOverlap(bullet.pos, bullet.radius, enemy.pos, hitbox.halfWidth, hitbox.halfHeight);
 }
 
 /** 自機の初期位置（下中央）。被弾時の復帰先にも使う。 */

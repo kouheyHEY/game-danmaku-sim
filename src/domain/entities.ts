@@ -4,6 +4,10 @@ import type { Pattern } from './pattern';
 export type Faction = 'player' | 'enemy';
 export type EntityId = number;
 
+export type EnemyHitbox =
+  | { kind: 'rect'; halfWidth: number; halfHeight: number }
+  | { kind: 'circle'; radius: number };
+
 export interface Ship {
   pos: Vec2;
   vel: Vec2;
@@ -26,6 +30,8 @@ export interface Enemy {
   pos: Vec2;
   vel: Vec2; // 移動量（雑魚は下へ降下、ボスは横に往復）
   hitRadius: number;
+  /** 自弾との衝突形状。未指定の敵は hitRadius を半幅とする矩形。 */
+  hitbox?: EnemyHitbox;
   hp: number;
   maxHp: number;
   pattern: Pattern | null; // この敵が撃つ弾幕（自分の位置から発射）
@@ -33,6 +39,14 @@ export interface Enemy {
   visible?: boolean; // false の間は描画しない（スナイパーの潜伏など）
   targetable?: boolean; // false の間は自弾が透過する
   reflectPlayerBullets?: boolean; // 当たった自弾を敵弾として来た方向へ返す
+}
+
+export function enemyHitbox(enemy: Enemy): EnemyHitbox {
+  return enemy.hitbox ?? {
+    kind: 'rect',
+    halfWidth: enemy.hitRadius,
+    halfHeight: enemy.hitRadius,
+  };
 }
 
 export interface Bullet {
