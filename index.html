@@ -5,13 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>danmaku-sim</title>
     <style>
+      @font-face {
+        font-family: 'PixelMplus12';
+        src: url('./font/PixelMplus12-Regular.ttf') format('truetype');
+        font-display: swap;
+      }
       :root { color-scheme: dark; }
       html, body { margin: 0; height: 100%; background: #0b0d12; overscroll-behavior: none; touch-action: none; }
       body {
         /* スマホでのスクロール/バウンス/プルリフレッシュを殺す */
         position: fixed; inset: 0; overflow: hidden; overscroll-behavior: none;
         display: flex; align-items: center; justify-content: center;
-        font-family: system-ui, sans-serif;
+        font-family: 'PixelMplus12', monospace;
         touch-action: none;
         -webkit-user-select: none; user-select: none;
         -webkit-touch-callout: none;

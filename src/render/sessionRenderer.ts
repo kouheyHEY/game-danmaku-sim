@@ -19,6 +19,7 @@ const ENEMY_BULLET = 0xffd166;
 const ENEMY_BULLET_OUTLINE = 0x5c2d10;
 const PLAYER_BULLET = 0x67e8f9;
 const PLAYER_BULLET_VISUAL_MAX = 7;
+const GAME_FONT = 'PixelMplus12, monospace';
 const BULLET_COLORS = {
   normal: ENEMY_BULLET,
   reversa: 0xf0abfc,
@@ -63,7 +64,7 @@ const style = (size: number, fill: number, bold = false) => ({
   fill,
   fontSize: size,
   fontWeight: (bold ? 'bold' : 'normal') as 'bold' | 'normal',
-  fontFamily: 'system-ui, sans-serif',
+  fontFamily: GAME_FONT,
   align: 'center' as const,
   lineHeight: size + 6,
 });
@@ -159,9 +160,9 @@ export class SessionRenderer {
     this.rankingFooter = new Text({ text: 'Tap to restart', style: style(14, 0xcbd5e1, true) });
     this.rankingFooter.anchor.set(0.5, 0);
 
-    this.rewardTitle = new Text({ text: 'BOSS撃破・HP+1回復\n特別強化を選択', style: style(22, 0xf1d4ff, true) });
+    this.rewardTitle = new Text({ text: '', style: style(20, 0xf1d4ff, true) });
     this.rewardTitle.anchor.set(0.5);
-    this.rewardTitle.position.set(FIELD.w / 2, 172);
+    this.rewardTitle.position.set(FIELD.w / 2, 132);
     this.rewardTexts = specialRewardCardRects().map((r) => {
       const text = new Text({
         text: '',
@@ -385,6 +386,9 @@ export class SessionRenderer {
       this.rankingFooter.visible = true;
     } else if (session.phase === 'reward') {
       this.dim.rect(0, 0, FIELD.w, FIELD.h).fill({ color: 0x0b0d12, alpha: 0.84 });
+      this.rewardTitle.text = session.rewardNotice
+        ? `BOSS撃破・HP+1回復\n${session.rewardNotice}\n特別強化を選択`
+        : 'BOSS撃破・HP+1回復\n特別強化を選択';
       this.rewardTitle.visible = true;
       const rects = specialRewardCardRects();
       rects.forEach((r, i) => {

@@ -33,7 +33,7 @@ export interface Session {
   scoreBase: number; // 与えた実ダメージ + grazeCount × GRAZE_SCORE
   damageDealt: number;
   grazeCount: number;
-  scoreMultiplier: number; // 1.1 ^ priestDefeats
+  scoreMultiplier: number; // 1.2 ^ priestDefeats
   priestDefeats: number;
   kills: number; // 倒した敵の数（雑魚＋ボス）
   nextBossAt: number;
@@ -49,13 +49,14 @@ export interface Session {
   leaderboard: LeaderboardEntry[];
   currentRank: number | null;
   reachedBossName: string;
+  rewardNotice: string;
 }
 
 export const GRAZE_SCORE = 10;
 export const BOSS_DEFEAT_HEAL = 1;
 
 export function multiplierForPriestDefeats(priestDefeats: number): number {
-  return 1.1 ** Math.max(0, Math.floor(priestDefeats));
+  return 1.2 ** Math.max(0, Math.floor(priestDefeats));
 }
 
 export function scoreForBase(scoreBase: number, priestDefeats: number): number {
@@ -102,6 +103,7 @@ export function beginSession(seed = Date.now()): Session {
     leaderboard: [],
     currentRank: null,
     reachedBossName: '',
+    rewardNotice: '',
   };
 }
 
@@ -203,6 +205,9 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
       session.priestDefeats += 1;
       session.scoreMultiplier = multiplierForPriestDefeats(session.priestDefeats);
       session.score = scoreForBase(session.scoreBase, session.priestDefeats);
+      session.rewardNotice = `プリースト撃破：スコア倍率 ×${session.scoreMultiplier.toFixed(2)}`;
+    } else {
+      session.rewardNotice = '';
     }
     cleanupBoss(defeatedBoss, w, session.loadout);
     session.bossId = null;
@@ -267,6 +272,7 @@ export function chooseSpecialUpgrade(session: Session, index: number): boolean {
   ship.hp = session.loadout.hp;
   ship.weapon = buildWeapon(session.loadout.weapon);
   session.specialChoices = [];
+  session.rewardNotice = '';
   session.phase = 'playing';
   session.nextBossAt = session.world.time + BOSS_INTERVAL;
   session.toast = { text: `特別強化 ・ ${upgrade.name}`, until: session.world.time + 2.4 };

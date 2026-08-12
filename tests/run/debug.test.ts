@@ -3,7 +3,7 @@ import { beginSession } from '../../src/run/session';
 import {
   debugSpawnBoss, debugSpawnStrongBoss, debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
   debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, debugSpawnBossKind,
-  debugTriggerBossEvent, debugPriestMode, WEAPON_UPGRADES,
+  debugTriggerBossEvent, debugDefeatBoss, debugPriestMode, WEAPON_UPGRADES,
 } from '../../src/run/debug';
 
 describe('デバッグアクション', () => {
@@ -94,5 +94,13 @@ describe('デバッグアクション', () => {
     debugSpawnBossKind(s, 'priest');
     debugPriestMode(s, 'reflect');
     expect(s.boss?.kind === 'priest' && s.boss.mode).toBe('reflect');
+  });
+
+  it('現在のボス一式を即時撃破できる', () => {
+    const s = beginSession(9);
+    debugSpawnBossKind(s, 'sniper');
+    debugDefeatBoss(s);
+    const bossIds = new Set(s.boss?.enemyIds ?? []);
+    expect(s.world.enemies.filter((e) => bossIds.has(e.id)).every((e) => e.hp === 0)).toBe(true);
   });
 });

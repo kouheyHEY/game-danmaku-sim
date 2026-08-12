@@ -9,7 +9,7 @@ import {
 } from '../render/sessionRenderer';
 import { mountDebugPanel, debugEnabled, type DebugButton } from '../render/debugPanel';
 import {
-  debugSpawnBossKind, debugTriggerBossEvent, debugPriestMode,
+  debugSpawnBossKind, debugTriggerBossEvent, debugDefeatBoss, debugPriestMode,
   debugLevelUp, debugGiveUpgrade, debugFullHeal,
   debugAddMaxHp, debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, WEAPON_UPGRADES,
 } from '../run/debug';
@@ -18,9 +18,21 @@ import { nextDragTarget } from '../input/drag';
 import { ARROW_KEYS, arrowKeyInput } from '../input/keyboard';
 import { GameSfx } from '../audio/sfx';
 import { makeLeaderboardEntry, recordScore } from '../run/leaderboard';
+import { renderResolutionForViewport } from '../render/displayResolution';
 
 const STEP = 1 / 120; // 固定タイムステップ（決定論・当たり判定の安定）
 const MAX_FRAME = 0.25; // スパイク時の暴走防止
+const GAME_FONT_FAMILY = 'PixelMplus12';
+
+async function loadGameFont(): Promise<void> {
+  const src = new URL(`${import.meta.env.BASE_URL}font/PixelMplus12-Regular.ttf`, window.location.href).href;
+  const face = new FontFace(GAME_FONT_FAMILY, `url(${src})`, { weight: '400 900' });
+  try {
+    document.fonts.add(await face.load());
+  } catch (error) {
+    console.warn('Pixel font could not be loaded; using the fallback font.', error);
+  }
+}
 
 async function loadEntityTextures(): Promise<EntityTextures> {
   const assets = [
@@ -45,13 +57,14 @@ async function loadEntityTextures(): Promise<EntityTextures> {
 }
 
 async function main(): Promise<void> {
+  await loadGameFont();
   const app = new Application();
   await app.init({
     width: FIELD.w,
     height: FIELD.h,
     background: 0x0b0d12,
     antialias: true,
-    resolution: Math.min(window.devicePixelRatio || 1, 2),
+    resolution: 1,
     autoDensity: true,
   });
   document.getElementById('app')!.appendChild(app.canvas);
@@ -63,6 +76,10 @@ async function main(): Promise<void> {
   const fit = () => {
     const scale = Math.min(window.innerWidth / FIELD.w, window.innerHeight / FIELD.h);
     if (!(scale > 0)) return;
+    const resolution = renderResolutionForViewport(scale, window.devicePixelRatio || 1);
+    if (Math.abs(app.renderer.resolution - resolution) > 0.01) {
+      app.renderer.resize(FIELD.w, FIELD.h, resolution);
+    }
     canvas.style.width = `${Math.floor(FIELD.w * scale)}px`;
     canvas.style.height = `${Math.floor(FIELD.h * scale)}px`;
   };
@@ -199,6 +216,7 @@ async function main(): Promise<void> {
   if (debug) {
     const buttons: DebugButton[] = [
       ...BOSS_ORDER.map((kind) => ({ label: `BOSS ${BOSS_NAMES[kind]}`, onClick: () => debugSpawnBossKind(session, kind) })),
+      { label: 'ボス撃破', onClick: () => debugDefeatBoss(session) },
       { label: 'ボスイベント発動', onClick: () => debugTriggerBossEvent(session) },
       { label: 'プリーストA 追跡', onClick: () => debugPriestMode(session, 'chase') },
       { label: 'プリーストB 旋回弾', onClick: () => debugPriestMode(session, 'orb') },

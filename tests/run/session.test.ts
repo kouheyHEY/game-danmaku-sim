@@ -14,6 +14,7 @@ import {
   titleSession,
 } from '../../src/run/session';
 import type { Bullet, ShipInput } from '../../src/domain/entities';
+import { availableSpecialRewards } from '../../src/run/upgrades';
 
 const DT = 1 / 120;
 const STILL: ShipInput = { moveX: 0, moveY: 0 };
@@ -111,10 +112,32 @@ describe('boss-only session', () => {
     session.world.enemies.forEach((enemy) => { enemy.hp = 0; });
     stepSession(session, STILL, DT);
     expect(session.priestDefeats).toBe(1);
-    expect(session.scoreMultiplier).toBeCloseTo(1.1);
-    expect(session.score).toBeCloseTo(11);
-    expect(multiplierForPriestDefeats(3)).toBeCloseTo(1.331);
-    expect(scoreForBase(10, 3)).toBeCloseTo(13.31);
+    expect(session.scoreMultiplier).toBeCloseTo(1.2);
+    expect(session.score).toBeCloseTo(12);
+    expect(session.rewardNotice).toContain('×1.20');
+    expect(multiplierForPriestDefeats(3)).toBeCloseTo(1.728);
+    expect(scoreForBase(10, 3)).toBeCloseTo(17.28);
+  });
+
+  it('keeps upgrade levels after rebirth and can continue strengthening', () => {
+    const session = beginSession(51);
+    session.nextBossAt = Number.POSITIVE_INFINITY;
+    session.world.ship.invulnUntil = 1e9;
+    expect(spawnBoss(session, 'priest', true)).toBe(true);
+    session.world.enemies.forEach((enemy) => { enemy.hp = 0; });
+    stepSession(session, STILL, DT);
+    expect(session.priestDefeats).toBe(1);
+
+    session.specialChoices = [availableSpecialRewards(session.loadout).find((u) => u.key === 'focus')!];
+    expect(chooseSpecialUpgrade(session, 0)).toBe(true);
+    expect(session.loadout.upgradeLevels.focus).toBe(1);
+
+    expect(spawnBoss(session, 'reversa', true)).toBe(true);
+    session.world.enemies.forEach((enemy) => { enemy.hp = 0; });
+    stepSession(session, STILL, DT);
+    session.specialChoices = [availableSpecialRewards(session.loadout).find((u) => u.key === 'focus')!];
+    expect(chooseSpecialUpgrade(session, 0)).toBe(true);
+    expect(session.loadout.upgradeLevels.focus).toBe(2);
   });
 
   it('offers a special upgrade after a strong boss and continues to the next boss', () => {

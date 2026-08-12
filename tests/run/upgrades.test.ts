@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { LIFE_CORE_HEAL, SPECIAL_UPGRADES, WEAPON_UPGRADES, drawSpecialUpgrades, randomWeaponUpgrade } from '../../src/run/upgrades';
-import { startingLoadout } from '../../src/run/loadout';
+import {
+  LIFE_CORE_HEAL, SPECIAL_UPGRADES, SPECIAL_UPGRADE_MAX_LEVELS, WEAPON_UPGRADES,
+  availableSpecialRewards, drawSpecialUpgrades, randomWeaponUpgrade,
+} from '../../src/run/upgrades';
+import { INITIAL_WEAPON, startingLoadout } from '../../src/run/loadout';
 import { makeRng } from '../../src/domain/rng';
 
 describe('武器強化プール（弾数+2一強の解消）', () => {
@@ -100,5 +103,63 @@ describe('武器強化プール（弾数+2一強の解消）', () => {
     expect(l.maxHp).toBe(7);
     expect(l.hp).toBe(2 + LIFE_CORE_HEAL);
     expect(lifeCore.description).toContain(`追加でHP+${LIFE_CORE_HEAL}回復`);
+  });
+
+  it('強化選択肢に現在のレベルと上限を表示する', () => {
+    const l = startingLoadout();
+    const rewards = availableSpecialRewards(l);
+    expect(rewards.find((u) => u.key === 'focus')?.name).toContain('Lv.1/4');
+    expect(rewards.find((u) => u.key === 'life')?.name).toContain('Lv.1');
+  });
+
+  it('弾数強化が上限に達すると凝縮へ置き換わり、9方向を威力9倍へ変換して再育成できる', () => {
+    const l = startingLoadout();
+    const focus = SPECIAL_UPGRADES.find((u) => u.key === 'focus')!;
+    for (let i = 0; i < SPECIAL_UPGRADE_MAX_LEVELS.focus; i++) focus.apply(l);
+    expect(l.weapon.ways).toBe(9);
+
+    const reset = availableSpecialRewards(l).find((u) => u.key === 'focus')!;
+    expect(reset.reset).toBe(true);
+    const damage = l.weapon.damage;
+    reset.apply(l);
+
+    expect(l.weapon.kind).toBe(INITIAL_WEAPON.kind);
+    expect(l.weapon.ways).toBe(INITIAL_WEAPON.ways);
+    expect(l.weapon.damage).toBeCloseTo(damage * 9);
+    expect(l.upgradeLevels.focus).toBe(0);
+    expect(availableSpecialRewards(l).find((u) => u.key === 'focus')?.reset).not.toBe(true);
+  });
+
+  it('速度・連射強化も上限後に初期値へ戻し、蓄積倍率を威力へ変換する', () => {
+    const l = startingLoadout();
+    const overdrive = SPECIAL_UPGRADES.find((u) => u.key === 'overdrive')!;
+    for (let i = 0; i < SPECIAL_UPGRADE_MAX_LEVELS.overdrive; i++) overdrive.apply(l);
+    const expectedMultiplier = (l.weapon.speed / INITIAL_WEAPON.speed)
+      * (INITIAL_WEAPON.interval / l.weapon.interval);
+    const damage = l.weapon.damage;
+
+    availableSpecialRewards(l).find((u) => u.key === 'overdrive')!.apply(l);
+
+    expect(l.weapon.speed).toBe(INITIAL_WEAPON.speed);
+    expect(l.weapon.interval).toBe(INITIAL_WEAPON.interval);
+    expect(l.weapon.damage).toBeCloseTo(damage * expectedMultiplier);
+    expect(l.upgradeLevels.overdrive).toBe(0);
+  });
+
+  it('HP強化は上限なしで、武器強化は凝縮を挟んで何周でも成長できる', () => {
+    const l = startingLoadout();
+    const life = SPECIAL_UPGRADES.find((u) => u.key === 'life')!;
+    const focus = SPECIAL_UPGRADES.find((u) => u.key === 'focus')!;
+    for (let i = 0; i < 20; i++) life.apply(l);
+    expect(l.maxHp).toBe(45);
+    expect(l.upgradeLevels.life).toBe(20);
+    expect(availableSpecialRewards(l).find((u) => u.key === 'life')?.reset).not.toBe(true);
+
+    for (let cycle = 0; cycle < 8; cycle++) {
+      for (let i = 0; i < SPECIAL_UPGRADE_MAX_LEVELS.focus; i++) focus.apply(l);
+      availableSpecialRewards(l).find((u) => u.key === 'focus')!.apply(l);
+    }
+    expect(l.upgradeLevels.focus).toBe(0);
+    expect(l.weapon.damage).toBeGreaterThan(1);
   });
 });

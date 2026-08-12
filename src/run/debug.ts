@@ -32,11 +32,20 @@ export function debugSpawnStrongBoss(s: Session): void {
 }
 
 export function debugSpawnBossKind(s: Session, kind: BossKind): void {
-  replaceBoss(s, kind, false);
+  replaceBoss(s, kind, true);
 }
 
 export function debugTriggerBossEvent(s: Session): void {
   if (s.boss) forceBossEvent(s.boss, s.world);
+}
+
+/** 現在のボス一式を撃破扱いにし、次のstepで報酬画面へ進める。 */
+export function debugDefeatBoss(s: Session): void {
+  if (!s.boss) return;
+  const ids = new Set(s.boss.enemyIds);
+  for (const enemy of s.world.enemies) {
+    if (ids.has(enemy.id)) enemy.hp = 0;
+  }
 }
 
 export function debugPriestMode(s: Session, mode: 'chase' | 'orb' | 'reflect'): void {
