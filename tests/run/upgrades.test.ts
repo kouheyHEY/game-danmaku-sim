@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SPECIAL_UPGRADES, WEAPON_UPGRADES, drawSpecialUpgrades, randomWeaponUpgrade } from '../../src/run/upgrades';
+import { LIFE_CORE_HEAL, SPECIAL_UPGRADES, WEAPON_UPGRADES, drawSpecialUpgrades, randomWeaponUpgrade } from '../../src/run/upgrades';
 import { startingLoadout } from '../../src/run/loadout';
 import { makeRng } from '../../src/domain/rng';
 
@@ -88,5 +88,17 @@ describe('武器強化プール（弾数+2一強の解消）', () => {
     const before = JSON.stringify(l);
     choices[0].apply(l);
     expect(JSON.stringify(l)).not.toBe(before);
+  });
+
+  it('ライフコアはボス撃破時の自動回復とは別にHPを追加回復する', () => {
+    const l = startingLoadout();
+    l.hp = 2;
+    const lifeCore = SPECIAL_UPGRADES.find((u) => u.name === 'ライフコア')!;
+
+    lifeCore.apply(l);
+
+    expect(l.maxHp).toBe(7);
+    expect(l.hp).toBe(2 + LIFE_CORE_HEAL);
+    expect(lifeCore.description).toContain(`追加でHP+${LIFE_CORE_HEAL}回復`);
   });
 });

@@ -94,7 +94,10 @@ export class SessionRenderer {
   private readonly rewardTitle: Text;
   private readonly rewardTexts: Text[];
   private readonly center: Text;
+  private readonly rankingTableG = new Graphics();
   private readonly rankingText: Text;
+  private readonly rankingColumns: Text[];
+  private readonly rankingFooter: Text;
 
   constructor(stage: Container, private readonly textures: EntityTextures, private readonly showHitboxes = false) {
     // 安全な自弾は奥、避けるべき敵弾は敵より手前、自機と白い当たり判定は最前面。
@@ -143,12 +146,20 @@ export class SessionRenderer {
     this.center.position.set(FIELD.w / 2, FIELD.h * 0.44);
     this.rankingText = new Text({
       text: '',
-      style: { ...style(14, 0xe5e7eb), fontFamily: 'monospace', lineHeight: 21 },
+      style: style(15, 0xe5e7eb, true),
     });
     this.rankingText.anchor.set(0.5, 0);
-    this.rankingText.position.set(FIELD.w / 2, 205);
+    this.rankingText.position.set(FIELD.w / 2, 194);
+    this.rankingColumns = [52, 145, 295, 418].map((x) => {
+      const text = new Text({ text: '', style: { ...style(13, 0xe5e7eb), lineHeight: 22 } });
+      text.anchor.set(0.5, 0);
+      text.position.set(x, 226);
+      return text;
+    });
+    this.rankingFooter = new Text({ text: 'Tap to restart', style: style(14, 0xcbd5e1, true) });
+    this.rankingFooter.anchor.set(0.5, 0);
 
-    this.rewardTitle = new Text({ text: '特別強化を選択', style: style(24, 0xf1d4ff, true) });
+    this.rewardTitle = new Text({ text: 'BOSS撃破・HP+1回復\n特別強化を選択', style: style(22, 0xf1d4ff, true) });
     this.rewardTitle.anchor.set(0.5);
     this.rewardTitle.position.set(FIELD.w / 2, 172);
     this.rewardTexts = specialRewardCardRects().map((r) => {
@@ -164,7 +175,8 @@ export class SessionRenderer {
     stage.addChild(
       this.hpText, this.scoreLabel, this.scoreNum, this.multiplierText, this.grazeText, this.killsText,
       this.toast, this.bossName, this.pauseG, this.pauseText,
-      this.dim, this.rewardG, this.rewardTitle, ...this.rewardTexts, this.center, this.rankingText,
+      this.dim, this.rewardG, this.rankingTableG, this.rewardTitle, ...this.rewardTexts,
+      this.center, this.rankingText, ...this.rankingColumns, this.rankingFooter,
     );
   }
 
@@ -325,8 +337,11 @@ export class SessionRenderer {
 
     this.dim.clear();
     this.rewardG.clear();
+    this.rankingTableG.clear();
     this.rewardTitle.visible = false;
     this.rankingText.visible = false;
+    this.rankingFooter.visible = false;
+    for (const text of this.rankingColumns) text.visible = false;
     this.center.position.set(FIELD.w / 2, FIELD.h * 0.44);
     for (const text of this.rewardTexts) text.visible = false;
     if (session.phase === 'title') {
@@ -339,10 +354,35 @@ export class SessionRenderer {
       this.center.position.set(FIELD.w / 2, 92);
       this.center.text = `GAME OVER\n順位 ${rank}  ・  スコア ${formatScore(session.score)}\n到達 ${session.reachedBossName || '集計中'}  ・  転生 ${session.priestDefeats}回`;
       this.center.visible = true;
-      const rows = session.leaderboard.map((entry, index) =>
-        `${String(index + 1).padStart(2)}位  ${formatScore(entry.score).padStart(9)}  ${entry.reachedBoss}  転生${entry.rebirths}`);
-      this.rankingText.text = `端末内スコアランキング TOP 10\n${rows.join('\n')}\n\nTap to restart`;
+      const rows = session.leaderboard;
+      const rowHeight = 22;
+      const tableTop = 218;
+      const tableHeight = (rows.length + 1) * rowHeight + 12;
+      this.rankingTableG
+        .roundRect(20, tableTop, FIELD.w - 40, tableHeight, 8)
+        .fill({ color: 0x111827, alpha: 0.72 })
+        .stroke({ color: 0x64748b, alpha: 0.55, width: 1 });
+      for (const x of [82, 208, 382]) {
+        this.rankingTableG.moveTo(x, tableTop).lineTo(x, tableTop + tableHeight).stroke({ color: 0x475569, alpha: 0.45, width: 1 });
+      }
+      this.rankingTableG
+        .moveTo(20, tableTop + rowHeight + 5)
+        .lineTo(FIELD.w - 20, tableTop + rowHeight + 5)
+        .stroke({ color: 0x94a3b8, alpha: 0.55, width: 1 });
+      const columns = [
+        ['順位', ...rows.map((_, index) => `${index + 1}位`)],
+        ['スコア', ...rows.map((entry) => formatScore(entry.score))],
+        ['到達ボス', ...rows.map((entry) => entry.reachedBoss)],
+        ['転生', ...rows.map((entry) => `${entry.rebirths}回`)],
+      ];
+      this.rankingColumns.forEach((text, index) => {
+        text.text = columns[index].join('\n');
+        text.visible = true;
+      });
+      this.rankingText.text = '端末内スコアランキング TOP 10';
       this.rankingText.visible = true;
+      this.rankingFooter.position.set(FIELD.w / 2, tableTop + tableHeight + 14);
+      this.rankingFooter.visible = true;
     } else if (session.phase === 'reward') {
       this.dim.rect(0, 0, FIELD.w, FIELD.h).fill({ color: 0x0b0d12, alpha: 0.84 });
       this.rewardTitle.visible = true;

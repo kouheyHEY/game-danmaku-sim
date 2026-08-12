@@ -13,6 +13,7 @@ export interface SpecialUpgrade extends WeaponUpgrade {
 
 const RADIUS_CAP = 10;
 const SPREAD_FLOOR = 0.05;
+export const LIFE_CORE_HEAL = 2;
 
 /**
  * ボス撃破時にランダムで1つ適用する弾幕強化（選択UIなし）。
@@ -81,10 +82,10 @@ export const SPECIAL_UPGRADES: SpecialUpgrade[] = [
   },
   {
     name: 'ライフコア',
-    description: '最大HP+2・HPを2回復',
+    description: `最大HP+2・追加でHP+${LIFE_CORE_HEAL}回復`,
     apply(l) {
       l.maxHp += 2;
-      l.hp = Math.min(l.maxHp, l.hp + 2);
+      l.hp = Math.min(l.maxHp, l.hp + LIFE_CORE_HEAL);
     },
     available: (l) => l.maxHp < 15,
   },

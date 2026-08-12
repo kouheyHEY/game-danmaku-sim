@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   GRAZE_SCORE,
+  BOSS_DEFEAT_HEAL,
   IFRAME,
   beginSession,
   chooseSpecialUpgrade,
@@ -129,6 +130,21 @@ describe('boss-only session', () => {
     stepFor(session, 1.4);
     expect(session.bossKind).toBe('sniper');
     expect(session.world.enemies.every((enemy) => enemy.role !== 'mob')).toBe(true);
+  });
+
+  it('heals one HP automatically before showing every boss reward', () => {
+    const session = beginSession(61);
+    session.world.ship.invulnUntil = 1e9;
+    session.world.ship.hp = 2;
+    session.loadout.hp = 2;
+    stepFor(session, 1);
+    session.world.enemies.forEach((enemy) => { enemy.hp = 0; });
+
+    stepSession(session, STILL, DT);
+
+    expect(session.phase).toBe('reward');
+    expect(session.world.ship.hp).toBe(2 + BOSS_DEFEAT_HEAL);
+    expect(session.loadout.hp).toBe(2 + BOSS_DEFEAT_HEAL);
   });
 
   it('enters game over on the final hit and grants the configured invulnerability window', () => {

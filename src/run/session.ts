@@ -52,6 +52,7 @@ export interface Session {
 }
 
 export const GRAZE_SCORE = 10;
+export const BOSS_DEFEAT_HEAL = 1;
 
 export function multiplierForPriestDefeats(priestDefeats: number): number {
   return 1.1 ** Math.max(0, Math.floor(priestDefeats));
@@ -209,7 +210,7 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
     session.boss = null;
     session.bossIsStrong = false;
     session.level += 1;
-    ship.hp = Math.min(ship.maxHp, ship.hp + 1); // HP+1回復
+    ship.hp = Math.min(ship.maxHp, ship.hp + BOSS_DEFEAT_HEAL);
     session.loadout.hp = ship.hp;
     if (wasStrong) {
       // 選択中に残弾で状況が変わらないよう、戦場を空にして時間を止める。

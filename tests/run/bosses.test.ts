@@ -26,6 +26,31 @@ describe('特徴ボス', () => {
     ]);
   });
 
+  it('転生後の同種ボスはHPと弾幕速度が強化される', () => {
+    const firstCycle = beginSession(12);
+    firstCycle.level = 0;
+    firstCycle.world.ship.autoFire = false;
+    firstCycle.world.ship.invulnUntil = 1e9;
+    debugSpawnBossKind(firstCycle, 'reversa');
+
+    const secondCycle = beginSession(12);
+    secondCycle.level = 5;
+    secondCycle.world.ship.autoFire = false;
+    secondCycle.world.ship.invulnUntil = 1e9;
+    debugSpawnBossKind(secondCycle, 'reversa');
+
+    const firstBoss = firstCycle.world.enemies.find((enemy) => enemy.id === firstCycle.bossId)!;
+    const secondBoss = secondCycle.world.enemies.find((enemy) => enemy.id === secondCycle.bossId)!;
+    expect(secondBoss.maxHp).toBeGreaterThan(firstBoss.maxHp);
+
+    stepFor(firstCycle, 1);
+    stepFor(secondCycle, 1);
+    const firstBullet = firstCycle.world.bullets.find((bullet) => bullet.style === 'reversa')!;
+    const secondBullet = secondCycle.world.bullets.find((bullet) => bullet.style === 'reversa')!;
+    expect(Math.hypot(secondBullet.vel.x, secondBullet.vel.y))
+      .toBeGreaterThan(Math.hypot(firstBullet.vel.x, firstBullet.vel.y));
+  });
+
   it('15体を順番に撃破し、毎回の特別報酬を経ても進行が続く', () => {
     const s = beginSession(11);
     s.world.ship.invulnUntil = 1e9;
