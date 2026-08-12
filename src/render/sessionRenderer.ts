@@ -1,3 +1,6 @@
+/**
+ * Sessionの状態をPIXIの表示オブジェクトへ反映する描画担当。
+ */
 import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import { FIELD } from '../spec/stage0';
 import { RESPAWN_TIME, type Session } from '../run/session';
@@ -35,15 +38,18 @@ export interface RewardCardRect { x: number; y: number; w: number; h: number }
 
 export type BossTextureKey = 'reversa' | 'sniper' | 'shogun' | 'tank' | 'priest';
 
+/** アプリ側で読み込み、レンダラが参照するエンティティ画像の対応表。 */
 export interface EntityTextures extends Record<BossTextureKey, Texture> {
   player: Texture;
 }
 
+/** 特徴ボスごとの画面上のテクスチャ表示サイズを返す。 */
 export function bossTextureDisplaySize(kind: BossTextureKey): number {
   if (kind === 'shogun' || kind === 'tank') return LARGE_BOSS_TEXTURE_DISPLAY_SIZE;
   return kind === 'priest' ? PRIEST_TEXTURE_DISPLAY_SIZE : FEATURE_BOSS_TEXTURE_DISPLAY_SIZE;
 }
 
+/** 自機テクスチャの表示サイズを返す。当たり判定サイズは別定義にする。 */
 export function playerTextureDisplaySize(): number {
   return PLAYER_TEXTURE_DISPLAY_SIZE;
 }
@@ -60,6 +66,7 @@ export function pauseButtonRect(): RewardCardRect {
   return { x: 8, y: 8, w: 44, h: 38 };
 }
 
+/** 共通ピクセルフォントを使ったPIXI用テキストスタイルを作る。 */
 const style = (size: number, fill: number, bold = false) => ({
   fill,
   fontSize: size,
@@ -69,7 +76,13 @@ const style = (size: number, fill: number, bold = false) => ({
   lineHeight: size + 6,
 });
 
-/** Session を読んで描く：弾/自機/ボス＋右上スコア＋Tap to Start／GameOver。 */
+/**
+ * Draws the complete session state into PIXI display objects.
+ *
+ * The renderer owns no gameplay decisions. It only projects the current Session
+ * into stable layers: player bullets, enemies, player, enemy bullets, hitboxes,
+ * and modal UI. This keeps collision and score logic testable in the domain/run layer.
+ */
 export class SessionRenderer {
   private readonly playerBulletsG = new Graphics();
   private readonly enemyBulletsG = new Graphics();
@@ -100,6 +113,7 @@ export class SessionRenderer {
   private readonly rankingColumns: Text[];
   private readonly rankingFooter: Text;
 
+  /** 毎フレーム作り直さずに済むよう、永続的な表示オブジェクトを初期化する。 */
   constructor(stage: Container, private readonly textures: EntityTextures, private readonly showHitboxes = false) {
     // 安全な自弾は奥、避けるべき敵弾は敵より手前、自機と白い当たり判定は最前面。
     // 強化で自弾が大きく・多くなっても、危険情報が隠れない描画順を固定する。
@@ -181,6 +195,7 @@ export class SessionRenderer {
     );
   }
 
+  /** 渡されたSessionスナップショットから現在フレームを描き直す。 */
   draw(session: Session): void {
     const w = session.world;
     const ship = w.ship;
@@ -392,11 +407,18 @@ export class SessionRenderer {
       this.rewardTitle.visible = true;
       const rects = specialRewardCardRects();
       rects.forEach((r, i) => {
-        this.rewardG.roundRect(r.x, r.y, r.w, r.h, 14).fill({ color: 0x241b35, alpha: 0.98 });
-        this.rewardG.roundRect(r.x, r.y, r.w, r.h, 14).stroke({ color: STRONG_BOSS, width: 3, alpha: 0.9 });
         const choice = session.specialChoices[i];
+        const isReset = choice?.reset === true;
+        // 凝縮は通常強化と意味が違うため、カードの温度を変えて選択前に判別できるようにする。
+        this.rewardG
+          .roundRect(r.x, r.y, r.w, r.h, 14)
+          .fill({ color: isReset ? 0x33240d : 0x241b35, alpha: 0.98 });
+        this.rewardG
+          .roundRect(r.x, r.y, r.w, r.h, 14)
+          .stroke({ color: isReset ? 0xf59e0b : STRONG_BOSS, width: 3, alpha: 0.92 });
         const text = this.rewardTexts[i];
         text.text = choice ? `${choice.name}\n\n${choice.description}\n\nTap` : '';
+        text.style.fill = isReset ? 0xfff0c2 : 0xffffff;
         text.visible = !!choice;
       });
       this.center.visible = false;

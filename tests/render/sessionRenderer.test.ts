@@ -1,3 +1,6 @@
+/**
+ * 該当モジュールの期待挙動を固定する自動テスト。
+ */
 import { describe, expect, it } from 'vitest';
 import { bossTextureDisplaySize, playerTextureDisplaySize } from '../../src/render/sessionRenderer';
 import { PRIEST_HIT_RADIUS } from '../../src/spec/entityVisuals';

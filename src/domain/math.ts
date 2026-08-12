@@ -1,3 +1,6 @@
+/**
+ * 座標・矩形・衝突計算で使う小さな数学ユーティリティをまとめる。
+ */
 export interface Vec2 {
   x: number;
   y: number;
@@ -10,8 +13,10 @@ export interface Rect {
   h: number;
 }
 
+/** x, y を明示して Vec2 を作る短縮ヘルパー。 */
 export const vec = (x: number, y: number): Vec2 => ({ x, y });
 
+/** 2点間距離の二乗を返す。平方根を避けたい判定処理で使う。 */
 export function dist2(a: Vec2, b: Vec2): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
@@ -39,6 +44,7 @@ export function circleRectOverlap(
   return dx * dx + dy * dy <= radius * radius;
 }
 
+/** 値を指定範囲に収める。位置や描画解像度の暴走防止に使う。 */
 export function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }

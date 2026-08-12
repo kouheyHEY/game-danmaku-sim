@@ -1,3 +1,6 @@
+/**
+ * 衝突イベントの型だけを定義し、得点や失点の解釈を上位層へ委ねる。
+ */
 import type { EntityId, Faction } from './entities';
 
 /**

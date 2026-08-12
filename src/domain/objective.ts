@@ -1,3 +1,6 @@
+/**
+ * 初期プロトタイプ用の目的とスコア解釈を定義する。
+ */
 import type { CollisionEvent } from './collision';
 import type { World } from './world';
 

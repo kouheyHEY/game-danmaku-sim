@@ -1,3 +1,6 @@
+/**
+ * 該当モジュールの期待挙動を固定する自動テスト。
+ */
 import { describe, it, expect } from 'vitest';
 import { makeWorld, defaultShip } from '../../src/domain/world';
 import type { Bullet } from '../../src/domain/entities';

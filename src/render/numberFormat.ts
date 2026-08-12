@@ -1,3 +1,6 @@
+/**
+ * スコアや倍率をHUD向けの短い文字列へ整形する。
+ */
 const EXPONENT_THRESHOLD = 1_000_000;
 
 function trimFixed(value: number, digits: number): string {

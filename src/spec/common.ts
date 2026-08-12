@@ -1,3 +1,6 @@
+/**
+ * 初期仕様ステージで共通利用する弾幕やフェーズ構成を定義する。
+ */
 import { rotating, oneWay, type Pattern } from '../domain/pattern';
 import { avoidEnemyBullets, transition, type Mode } from '../domain/objective';
 import type { Phase } from '../domain/director';

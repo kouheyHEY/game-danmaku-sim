@@ -1,3 +1,6 @@
+/**
+ * 弾幕パターンを、時間と位置から弾を生成する純粋な仕組みとして定義する。
+ */
 import type { Vec2 } from './math';
 import type { Rng } from './rng';
 

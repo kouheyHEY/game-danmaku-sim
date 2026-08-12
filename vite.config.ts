@@ -1,3 +1,6 @@
+/**
+ * GitHub Pages配信用のbaseを含むVite設定。
+ */
 import { defineConfig } from 'vite';
 
 export default defineConfig({

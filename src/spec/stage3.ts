@@ -1,3 +1,6 @@
+/**
+ * 敵に弾を当てない制約を持つ仕様検証ステージを定義する。
+ */
 import { makeWorld, defaultShip, defaultEnemy } from '../domain/world';
 import { dontHitEnemy, makeScore } from '../domain/objective';
 import { evenSpread } from '../domain/pattern';

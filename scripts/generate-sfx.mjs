@@ -1,3 +1,6 @@
+/**
+ * 8bit風の効果音mp3アセットを生成する開発用スクリプト。
+ */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

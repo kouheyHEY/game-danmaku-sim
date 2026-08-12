@@ -1,3 +1,6 @@
+/**
+ * 最初の仕様検証ステージを定義する。
+ */
 import type { Rect } from '../domain/math';
 import { makeWorld, defaultShip, defaultEnemy, type World } from '../domain/world';
 import { avoidEnemyBullets, makeScore, type Score } from '../domain/objective';

@@ -1,3 +1,6 @@
+/**
+ * 該当モジュールの期待挙動を固定する自動テスト。
+ */
 import { describe, expect, it } from 'vitest';
 import type { ShipInput } from '../../src/domain/entities';
 import { beginSession, chooseSpecialUpgrade, stepSession } from '../../src/run/session';
@@ -136,11 +139,21 @@ describe('特徴ボス', () => {
     s.boss.nextShotAt = s.world.time;
     stepSession(s, STILL, DT);
     const incoming = s.world.bullets.find((b) => b.style === 'reversa')!;
-    expect(incoming.pos.y).toBeGreaterThan(s.world.bounds.y + s.world.bounds.h);
-    expect(incoming.vel.y).toBeLessThan(0);
+    const fromOutside =
+      incoming.pos.y > s.world.bounds.y + s.world.bounds.h ||
+      incoming.pos.x < s.world.bounds.x ||
+      incoming.pos.x > s.world.bounds.x + s.world.bounds.w;
+    expect(fromOutside).toBe(true);
     expect(incoming.reversaTurnAt).toBeUndefined();
     const toBoss = { x: boss.pos.x - incoming.pos.x, y: boss.pos.y - incoming.pos.y };
     expect(toBoss.x * incoming.vel.x + toBoss.y * incoming.vel.y).toBeGreaterThan(0);
+
+    s.world.bullets = [];
+    s.boss.nextShotAt = s.world.time - 2;
+    stepSession(s, STILL, DT);
+    const incomingSources = s.world.bullets.filter((b) => b.style === 'reversa' && b.reversaTurnAt === undefined);
+    expect(incomingSources.some((b) => b.pos.y > s.world.bounds.y + s.world.bounds.h)).toBe(true);
+    expect(incomingSources.some((b) => b.pos.x < s.world.bounds.x || b.pos.x > s.world.bounds.x + s.world.bounds.w)).toBe(true);
   });
 
   it('スナイパーは3体で、高速射撃後だけ可視・攻撃可能になる', () => {
@@ -310,7 +323,8 @@ describe('特徴ボス', () => {
     };
     boss.vel = { x: 0, y: 0 };
     stepSession(s, STILL, DT);
-    expect(boss.vel).toEqual({ x: 0, y: 0 });
+    expect(Math.abs(boss.vel.x)).toBeGreaterThan(0);
+    expect(boss.vel.y).toBe(0);
 
     const hp0 = boss.hp;
     applyBossHit(s.boss, s.world, boss.id, 10);

@@ -1,3 +1,6 @@
+/**
+ * デバッグパネルから呼ぶ、Sessionを直接操作する補助関数をまとめる。
+ */
 import { applyPlayerHit, multiplierForPriestDefeats, scoreForBase, spawnBoss, type Session } from './session';
 import { makeMob } from './content';
 import {

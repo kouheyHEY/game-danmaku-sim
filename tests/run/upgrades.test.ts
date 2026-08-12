@@ -1,3 +1,6 @@
+/**
+ * 該当モジュールの期待挙動を固定する自動テスト。
+ */
 import { describe, it, expect } from 'vitest';
 import {
   LIFE_CORE_HEAL, SPECIAL_UPGRADES, SPECIAL_UPGRADE_MAX_LEVELS, WEAPON_UPGRADES,

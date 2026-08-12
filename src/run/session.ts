@@ -1,3 +1,6 @@
+/**
+ * ゲーム全体のフェーズ、スコア、ボス出現、報酬選択を進行させる。
+ */
 import { makeWorld, defaultShip, shipSpawn, step, type World } from '../domain/world';
 import type { ShipInput } from '../domain/entities';
 import { makeRng, type Rng } from '../domain/rng';
@@ -55,14 +58,17 @@ export interface Session {
 export const GRAZE_SCORE = 10;
 export const BOSS_DEFEAT_HEAL = 1;
 
+/** プリースト撃破数から現在のスコア倍率を計算する。 */
 export function multiplierForPriestDefeats(priestDefeats: number): number {
   return 1.2 ** Math.max(0, Math.floor(priestDefeats));
 }
 
+/** 累積した素点に転生倍率を掛けて最終スコアを出す。 */
 export function scoreForBase(scoreBase: number, priestDefeats: number): number {
   return scoreBase * multiplierForPriestDefeats(priestDefeats);
 }
 
+/** 現在のプレイヤー強化状態からWorldを作る。 */
 function newWorld(loadout: PlayerLoadout, seed: number): World {
   const ship = defaultShip(FIELD);
   ship.weapon = buildWeapon(loadout.weapon);
@@ -74,6 +80,7 @@ function newWorld(loadout: PlayerLoadout, seed: number): World {
   return world;
 }
 
+/** 指定シードからプレイ可能なランを開始する。 */
 export function beginSession(seed = Date.now()): Session {
   const s = seed >>> 0;
   const loadout = startingLoadout();
@@ -107,24 +114,28 @@ export function beginSession(seed = Date.now()): Session {
   };
 }
 
+/** 最初のタップ前に表示するタイトル状態のSessionを作る。 */
 export function titleSession(seed = Date.now()): Session {
   const s = beginSession(seed);
   s.phase = 'title';
   return s;
 }
 
+/** 進行中のSessionを一時停止する。 */
 export function pauseSession(session: Session): boolean {
   if (session.phase !== 'playing') return false;
   session.phase = 'paused';
   return true;
 }
 
+/** 一時停止中のSessionを再開する。 */
 export function resumeSession(session: Session): boolean {
   if (session.phase !== 'paused') return false;
   session.phase = 'playing';
   return true;
 }
 
+/** 自機復帰中の、画面下からスライドする演出位置を計算する。 */
 function respawnSlide(w: World): { x: number; y: number } {
   const b = w.bounds;
   const spawn = shipSpawn(b);
@@ -147,6 +158,13 @@ export function applyPlayerHit(session: Session): boolean {
   return true;
 }
 
+/**
+ * Advances one fixed-timestep frame of gameplay.
+ *
+ * The order matters: boss AI may alter bullets/movement first, the domain world
+ * advances and reports collisions, then this function applies session-level
+ * consequences such as score, boss rewards, HP, phase transitions, and respawn.
+ */
 export function stepSession(session: Session, input: ShipInput, dt: number): void {
   if (session.phase !== 'playing') return;
   const w = session.world;

@@ -1,3 +1,6 @@
+/**
+ * URLや開発環境に応じて、デバッグ用ボタンパネルを生成する。
+ */
 export interface DebugButton {
   label: string;
   onClick: () => void;

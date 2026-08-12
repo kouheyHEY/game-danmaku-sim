@@ -1,3 +1,6 @@
+/**
+ * 自機・敵・弾など、ゲーム世界に存在するエンティティの型を定義する。
+ */
 import type { Vec2 } from './math';
 import type { Pattern } from './pattern';
 
@@ -8,6 +11,7 @@ export type EnemyHitbox =
   | { kind: 'rect'; halfWidth: number; halfHeight: number }
   | { kind: 'circle'; radius: number };
 
+/** プレイヤー自機の状態。見た目サイズではなく、ゲーム進行に必要な値だけを持つ。 */
 export interface Ship {
   pos: Vec2;
   vel: Vec2;
@@ -25,6 +29,7 @@ export interface Ship {
   deathPos: Vec2; // 直近の被弾位置（死亡エフェクト用）
 }
 
+/** 敵1体の状態。ボス・雑魚・ガード・スナイパーを同じ型で扱う。 */
 export interface Enemy {
   id: EntityId;
   pos: Vec2;
@@ -41,6 +46,7 @@ export interface Enemy {
   reflectPlayerBullets?: boolean; // 当たった自弾を敵弾として来た方向へ返す
 }
 
+/** Enemyに設定された当たり判定を返す。未指定なら旧来の矩形判定へフォールバックする。 */
 export function enemyHitbox(enemy: Enemy): EnemyHitbox {
   return enemy.hitbox ?? {
     kind: 'rect',
@@ -49,6 +55,7 @@ export function enemyHitbox(enemy: Enemy): EnemyHitbox {
   };
 }
 
+/** 弾1発の状態。特殊ボス用の追加挙動も任意プロパティとして持つ。 */
 export interface Bullet {
   id: EntityId;
   pos: Vec2;

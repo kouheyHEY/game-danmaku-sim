@@ -1,3 +1,6 @@
+/**
+ * ゲーム状態の変化を効果音キューに変換し、ブラウザのAudioContextで再生する。
+ */
 import type { Bullet } from '../domain/entities';
 import type { Session } from '../run/session';
 
@@ -10,6 +13,7 @@ export type SfxCue =
   | 'player-hit'
   | 'power-up';
 
+/** 発生可能な効果音キューの一覧。ロード対象と再生制御で共有する。 */
 const ALL_CUES: SfxCue[] = [
   'player-shot',
   'enemy-shot-aimed',
@@ -20,6 +24,7 @@ const ALL_CUES: SfxCue[] = [
   'power-up',
 ];
 
+/** 各効果音の最終音量。敵弾は連続再生されるため控えめにする。 */
 const VOLUME: Record<SfxCue, number> = {
   'player-shot': 0.035,
   'enemy-shot-aimed': 0.05,
@@ -30,6 +35,7 @@ const VOLUME: Record<SfxCue, number> = {
   'power-up': 0.18,
 };
 
+/** 同種効果音の最短再生間隔。弾数増加時の音割れを抑える。 */
 const MIN_INTERVAL: Record<SfxCue, number> = {
   'player-shot': 90,
   'enemy-shot-aimed': 90,
@@ -40,6 +46,7 @@ const MIN_INTERVAL: Record<SfxCue, number> = {
   'power-up': 180,
 };
 
+/** 弾の種類から、再生すべき敵弾効果音を選ぶ。不要な弾幕はnullで無音にする。 */
 export function enemyShotCue(bullet: Bullet): SfxCue | null {
   if (bullet.style === 'side') return null;
   if (bullet.style === 'sniper') return 'enemy-shot-aimed';
@@ -57,6 +64,7 @@ export class SfxTracker {
   private kills = 0;
   private level = 0;
 
+  /** 現在のSession状態を基準値として記録し、既存弾で音が鳴らないようにする。 */
   reset(session: Session): void {
     this.bulletIds = new Set(session.world.bullets.map((bullet) => bullet.id));
     this.hp = session.world.ship.hp;
@@ -64,6 +72,7 @@ export class SfxTracker {
     this.level = session.level;
   }
 
+  /** 前回との差分から、今回鳴らすべき効果音キューを集める。 */
   collect(session: Session): SfxCue[] {
     const cues = new Set<SfxCue>();
     const currentIds = new Set<number>();
@@ -110,6 +119,7 @@ export class GameSfx {
     }
   }
 
+  /** ゲーム開始やリスタート時に、効果音トラッカーの基準を取り直す。 */
   reset(session: Session): void {
     this.tracker.reset(session);
   }
@@ -125,10 +135,12 @@ export class GameSfx {
     }
   }
 
+  /** Session差分を見て、必要な効果音をキューへ流す。 */
   update(session: Session): void {
     for (const cue of this.tracker.collect(session)) this.play(cue);
   }
 
+  /** 指定効果音を再生する。準備未完了なら保留キューへ入れる。 */
   play(cue: SfxCue): void {
     const now = performance.now();
     if (now - (this.lastPlayed.get(cue) ?? -Infinity) < MIN_INTERVAL[cue]) return;
@@ -140,6 +152,7 @@ export class GameSfx {
     this.playNow(cue);
   }
 
+  /** mp3を取得してAudioBufferへデコードする。失敗してもゲームは止めない。 */
   private async load(cue: SfxCue, src: string): Promise<void> {
     if (!this.context) return;
     try {
@@ -153,6 +166,7 @@ export class GameSfx {
     }
   }
 
+  /** ロードやunlock待ちだった効果音を、再生可能になった時点で流す。 */
   private flushPending(): void {
     if (!this.context || this.context.state !== 'running') return;
     for (const cue of [...this.pending]) {
@@ -162,6 +176,7 @@ export class GameSfx {
     }
   }
 
+  /** AudioBufferSourceを作って、現在のAudioContextへ即時再生する。 */
   private playNow(cue: SfxCue): void {
     const context = this.context;
     const buffer = this.buffers.get(cue);

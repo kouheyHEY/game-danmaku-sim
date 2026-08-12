@@ -1,3 +1,6 @@
+/**
+ * 敵へ弾を当てる目的を持つ仕様検証ステージを定義する。
+ */
 import { makeWorld, defaultShip, defaultEnemy } from '../domain/world';
 import { hitEnemy, makeScore } from '../domain/objective';
 import { makeDirector } from '../domain/director';

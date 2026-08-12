@@ -1,3 +1,6 @@
+/**
+ * 該当モジュールの期待挙動を固定する自動テスト。
+ */
 import { describe, it, expect } from 'vitest';
 import { oddSpread, evenSpread, randomSpread, rotating, aimed } from '../../src/domain/pattern';
 import { makeRng } from '../../src/domain/rng';

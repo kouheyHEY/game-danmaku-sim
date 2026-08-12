@@ -1,3 +1,6 @@
+/**
+ * 雑魚や通常ボスの基礎コンテンツ生成を定義する。
+ */
 import { fan, rotating, aimed, type Pattern } from '../domain/pattern';
 import type { Enemy } from '../domain/entities';
 import type { Rect } from '../domain/math';

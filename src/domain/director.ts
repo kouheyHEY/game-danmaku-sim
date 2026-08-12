@@ -1,3 +1,6 @@
+/**
+ * 仕様検証用のフェーズ進行と目的達成判定を扱う。
+ */
 import type { CollisionEvent } from './collision';
 import type { Mode, Objective, Outcome, Score } from './objective';
 import type { Pattern } from './pattern';

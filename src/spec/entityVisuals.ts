@@ -1,3 +1,6 @@
+/**
+ * テクスチャ表示サイズと当たり判定サイズの定数を定義する。
+ */
 export const PLAYER_TEXTURE_DISPLAY_SIZE = 32;
 export const FEATURE_BOSS_TEXTURE_DISPLAY_SIZE = 48;
 export const LARGE_BOSS_TEXTURE_DISPLAY_SIZE = 56;

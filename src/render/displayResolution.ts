@@ -1,3 +1,6 @@
+/**
+ * 端末DPIと表示倍率から、PIXIの描画解像度を決める。
+ */
 export const MAX_RENDER_RESOLUTION = 4;
 
 /** CSS拡大率と端末DPIに合わせ、全画面でも論理解像度を粗く見せない。 */

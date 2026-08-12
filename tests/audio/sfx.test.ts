@@ -1,3 +1,6 @@
+/**
+ * 該当モジュールの期待挙動を固定する自動テスト。
+ */
 import { describe, expect, it } from 'vitest';
 import type { Bullet } from '../../src/domain/entities';
 import { enemyShotCue, SfxTracker } from '../../src/audio/sfx';

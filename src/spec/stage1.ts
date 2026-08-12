@@ -1,3 +1,6 @@
+/**
+ * 弾を取る目的を持つ仕様検証ステージを定義する。
+ */
 import { makeWorld, defaultShip, defaultEnemy } from '../domain/world';
 import { catchEnemyBullets, makeScore } from '../domain/objective';
 import { makeDirector } from '../domain/director';
