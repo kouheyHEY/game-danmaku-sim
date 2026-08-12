@@ -31,6 +31,7 @@ const BULLET_COLORS = {
   orb: 0xc084fc,
   side: 0x86efac,
   tank: 0xf59e0b,
+  bomb: 0xfb7185,
   reflected: 0x34d399,
 } as const;
 
@@ -66,6 +67,20 @@ export function pauseButtonRect(): RewardCardRect {
   return { x: 8, y: 8, w: 44, h: 38 };
 }
 
+/** HP10個を大きなハート1個として畳み、表示用に大ハートと小ハートを分ける。 */
+export function formatHpHeartParts(hp: number): { big: string; small: string } {
+  const safeHp = Math.max(0, Math.floor(hp));
+  const big = Math.floor(safeHp / 10);
+  const small = safeHp % 10;
+  return { big: '❤'.repeat(big), small: '♥'.repeat(small) };
+}
+
+/** テストや簡易表示向けに、HPハートを1行文字列へまとめる。 */
+export function formatHpHearts(hp: number): string {
+  const parts = formatHpHeartParts(hp);
+  return `${parts.big}${parts.big && parts.small ? ' ' : ''}${parts.small}`;
+}
+
 /** 共通ピクセルフォントを使ったPIXI用テキストスタイルを作る。 */
 const style = (size: number, fill: number, bold = false) => ({
   fill,
@@ -93,6 +108,7 @@ export class SessionRenderer {
   private readonly enemySprites = new Container();
   private readonly enemySpriteById = new Map<number, Sprite>();
   private readonly shipSprite: Sprite;
+  private readonly hpBigText: Text;
   private readonly hpText: Text;
   private readonly scoreLabel: Text;
   private readonly scoreNum: Text;
@@ -126,8 +142,10 @@ export class SessionRenderer {
       this.shipSprite, this.shipG, this.enemyBulletsG, this.hitboxG,
     );
 
+    this.hpBigText = new Text({ text: '', style: { ...style(25, 0xff5d73, true), align: 'left', lineHeight: 28 } });
+    this.hpBigText.position.set(62, 2);
     this.hpText = new Text({ text: '', style: { ...style(15, 0xff8fa3), align: 'left' } });
-    this.hpText.position.set(62, 16);
+    this.hpText.position.set(62, 30);
 
     this.scoreLabel = new Text({ text: 'スコア', style: style(12, 0x9aa3b8) });
     this.scoreLabel.anchor.set(1, 0);
@@ -188,7 +206,7 @@ export class SessionRenderer {
     });
 
     stage.addChild(
-      this.hpText, this.scoreLabel, this.scoreNum, this.multiplierText, this.grazeText, this.killsText,
+      this.hpBigText, this.hpText, this.scoreLabel, this.scoreNum, this.multiplierText, this.grazeText, this.killsText,
       this.toast, this.bossName, this.pauseG, this.pauseText,
       this.dim, this.rewardG, this.rankingTableG, this.rewardTitle, ...this.rewardTexts,
       this.center, this.rankingText, ...this.rankingColumns, this.rankingFooter,
@@ -321,7 +339,9 @@ export class SessionRenderer {
       this.shipG.circle(ship.pos.x, ship.pos.y, ship.hitRadius).fill({ color: 0xffffff, alpha: a });
     }
 
-    this.hpText.text = 'HP ' + '♥'.repeat(Math.max(0, ship.hp));
+    const hpParts = formatHpHeartParts(ship.hp);
+    this.hpBigText.text = hpParts.big;
+    this.hpText.text = `HP ${hpParts.small}`;
     this.scoreNum.text = formatScore(session.score);
     this.multiplierText.text = formatMultiplier(session.scoreMultiplier);
     this.grazeText.text = `かすり ${formatScore(session.grazeCount)}`;
@@ -334,9 +354,10 @@ export class SessionRenderer {
     this.grazeText.visible = active;
     this.killsText.visible = active;
     this.hpText.visible = active;
+    this.hpBigText.visible = active && hpParts.big.length > 0;
     this.toast.text = session.toast?.text ?? '';
     this.toast.visible = active && !!session.toast;
-    this.bossName.text = session.boss ? `${BOSS_NAMES[session.boss.kind]} ・ ${bossStatus(session.boss, w)}` : '';
+    this.bossName.text = session.boss ? `${session.boss.mutant ? '変異種 ' : ''}${BOSS_NAMES[session.boss.kind]} ・ ${bossStatus(session.boss, w)}` : '';
     this.bossName.visible = active && !!session.bossKind;
 
     const pauseRect = pauseButtonRect();
@@ -409,7 +430,7 @@ export class SessionRenderer {
       rects.forEach((r, i) => {
         const choice = session.specialChoices[i];
         const isReset = choice?.reset === true;
-        // 凝縮は通常強化と意味が違うため、カードの温度を変えて選択前に判別できるようにする。
+        // 圧縮転生は通常強化と意味が違うため、カードの温度を変えて選択前に判別できるようにする。
         this.rewardG
           .roundRect(r.x, r.y, r.w, r.h, 14)
           .fill({ color: isReset ? 0x33240d : 0x241b35, alpha: 0.98 });

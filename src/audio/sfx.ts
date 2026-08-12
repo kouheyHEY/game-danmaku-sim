@@ -50,7 +50,7 @@ const MIN_INTERVAL: Record<SfxCue, number> = {
 export function enemyShotCue(bullet: Bullet): SfxCue | null {
   if (bullet.style === 'side') return null;
   if (bullet.style === 'sniper') return 'enemy-shot-aimed';
-  if (bullet.style === 'tank' || bullet.style === 'orb' || bullet.style === 'wave') return 'enemy-shot-heavy';
+  if (bullet.style === 'tank' || bullet.style === 'bomb' || bullet.style === 'orb' || bullet.style === 'wave') return 'enemy-shot-heavy';
   if (bullet.style === 'reversa') return 'enemy-shot-burst';
   // 通常弾も発射ごとに音色を混ぜ、雑魚の射撃へ単発・連射らしい差を出す。
   if (bullet.id % 9 === 0) return 'enemy-shot-heavy';

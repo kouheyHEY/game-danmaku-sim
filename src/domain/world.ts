@@ -211,6 +211,11 @@ function moveBullets(world: World, dt: number): void {
         }
         if (bounced) {
             b.bouncesRemaining -= 1;
+            if (b.explodesOnBounce) {
+                spawnBounceExplosion(world, b);
+                b.expired = true;
+                continue;
+            }
             const factor = b.bounceSpeedUp ?? 1;
             b.vel.x *= factor;
             b.vel.y *= factor;
@@ -222,6 +227,24 @@ function moveBullets(world: World, dt: number): void {
                 b.expired = true;
             }
         }
+    }
+}
+
+/** 壁に当たった爆発弾から、高密度の全方位弾をその場に発生させる。 */
+function spawnBounceExplosion(world: World, source: Bullet): void {
+    const ways = source.explosionWays ?? 32;
+    const speed = source.explosionSpeed ?? 180;
+    const radius = source.explosionRadius ?? 3;
+    for (let i = 0; i < ways; i++) {
+        const angle = (Math.PI * 2 * i) / ways;
+        world.bullets.push({
+            id: world.nextId++,
+            pos: { ...source.pos },
+            vel: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
+            radius,
+            owner: "enemy",
+            style: "tank",
+        });
     }
 }
 
@@ -288,7 +311,7 @@ function detectCollisions(world: World): CollisionEvent[] {
                     owner: "player",
                 });
                 if (enemy.reflectPlayerBullets) {
-                    reflectPlayerBullet(world, b, survivors, 11);
+                    reflectPlayerBullet(world, b, survivors, 9);
                 }
                 continue;
             }
@@ -303,7 +326,7 @@ const REFLECT_SPREAD = 0.27;
 const REFLECT_MAX_SPEED = 170;
 const REFLECT_MAX_RADIUS = 3;
 
-/** 来た方向へ、中央弾を含むN方向の拡散弾として反射する。デフォルトは3方向 */
+/** 来た方向へ、中央弾を含むN方向の拡散弾として反射する。各弾に少し乱数角を足す。 */
 function reflectPlayerBullet(
     world: World,
     bullet: Bullet,
@@ -333,7 +356,8 @@ function reflectPlayerBullet(
                       pos: { ...bullet.pos },
                       vel: { ...bullet.vel },
                   };
-        const angle = returnAngle + lane * REFLECT_SPREAD;
+        const jitter = (world.rng.next() - 0.5) * 0.08;
+        const angle = returnAngle + lane * REFLECT_SPREAD + jitter;
         reflected.owner = "enemy";
         reflected.vel = {
             x: Math.cos(angle) * speed,

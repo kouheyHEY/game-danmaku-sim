@@ -1,5 +1,5 @@
 /**
- * 通常強化と特別強化、上限到達時の凝縮処理を定義する。
+ * 通常強化と特別強化、上限到達時の圧縮転生処理を定義する。
  */
 import {
     INITIAL_WEAPON,
@@ -14,7 +14,7 @@ export interface WeaponUpgrade {
     available?(l: PlayerLoadout): boolean;
 }
 
-/** レベル上限や凝縮リセットを持てる、ボス撃破後の選択式報酬。 */
+/** レベル上限や圧縮転生リセットを持てる、ボス撃破後の選択式報酬。 */
 export interface SpecialUpgrade extends WeaponUpgrade {
     key: SpecialUpgradeKey;
     description: string;
@@ -26,9 +26,9 @@ const RADIUS_CAP = 10;
 const SPREAD_FLOOR = 0.05;
 export const LIFE_CORE_HEAL = 2;
 export const SPECIAL_UPGRADE_MAX_LEVELS = {
-    focus: 4,
-    overdrive: 4,
-    heavy: 3,
+    focus: 5,
+    overdrive: 5,
+    heavy: 5,
 } as const;
 
 /**
@@ -112,19 +112,19 @@ export const SPECIAL_UPGRADES: SpecialUpgrade[] = [
         description: "連射速度UP・弾速UP",
         maxLevel: SPECIAL_UPGRADE_MAX_LEVELS.overdrive,
         apply(l) {
-            l.weapon.interval = Math.max(0.03, l.weapon.interval * 0.78);
-            l.weapon.speed += 120;
+            l.weapon.interval = Math.max(0.03, l.weapon.interval * 0.88);
+            l.weapon.speed += 60;
             l.upgradeLevels.overdrive += 1;
         },
     },
     {
         key: "heavy",
         name: "ヘビーバレット",
-        description: "弾を大きく・威力+2",
+        description: "弾を少し大きく・威力+1",
         maxLevel: SPECIAL_UPGRADE_MAX_LEVELS.heavy,
         apply(l) {
-            l.weapon.radius = Math.min(14, l.weapon.radius + 4);
-            l.weapon.damage += 2;
+            l.weapon.radius = Math.min(14, l.weapon.radius + 1.5);
+            l.weapon.damage += 1;
             l.upgradeLevels.heavy += 1;
         },
     },
@@ -140,12 +140,12 @@ export const SPECIAL_UPGRADES: SpecialUpgrade[] = [
     },
 ];
 
-/** 上限に達した強化の代わりに表示する凝縮選択肢を作る。 */
-function resetUpgrade(key: Exclude<SpecialUpgradeKey, "life">): SpecialUpgrade {
+/** 上限に達した強化の代わりに表示する、系統別の圧縮転生を作る。 */
+function compressionRebirth(key: Exclude<SpecialUpgradeKey, "life">): SpecialUpgrade {
     if (key === "focus")
         return {
             key,
-            name: "フォーカス凝縮",
+            name: "フォーカス圧縮転生 Lv.MAX→0",
             description: "弾数と拡散を初期化し、\n弾数倍率を威力へ変換",
             reset: true,
             apply(l) {
@@ -160,7 +160,7 @@ function resetUpgrade(key: Exclude<SpecialUpgradeKey, "life">): SpecialUpgrade {
     if (key === "overdrive")
         return {
             key,
-            name: "オーバードライブ凝縮",
+            name: "オーバードライブ圧縮転生 Lv.MAX→0",
             description: "弾速と連射を初期化し、\n強化倍率を威力へ変換",
             reset: true,
             apply(l) {
@@ -175,7 +175,7 @@ function resetUpgrade(key: Exclude<SpecialUpgradeKey, "life">): SpecialUpgrade {
         };
     return {
         key,
-        name: "ヘビーバレット凝縮",
+        name: "ヘビーバレット圧縮転生 Lv.MAX→0",
         description: "弾サイズを初期化し、\nサイズ倍率を威力へ変換",
         reset: true,
         apply(l) {
@@ -189,17 +189,16 @@ function resetUpgrade(key: Exclude<SpecialUpgradeKey, "life">): SpecialUpgrade {
     };
 }
 
-/** 基本の特別強化に現在レベル表示、または凝縮選択肢を付けて返す。 */
+/** 基本の特別強化に現在レベル表示、または系統別の圧縮転生を付けて返す。 */
 function rewardChoice(
     upgrade: SpecialUpgrade,
     loadout: PlayerLoadout,
 ): SpecialUpgrade {
     const current = loadout.upgradeLevels[upgrade.key];
     if (upgrade.maxLevel !== undefined && current >= upgrade.maxLevel) {
-        const reset = resetUpgrade(
+        return compressionRebirth(
             upgrade.key as Exclude<SpecialUpgradeKey, "life">,
         );
-        return { ...reset, name: `${reset.name} Lv.MAX→0` };
     }
     const next = current + 1;
     const cap = upgrade.maxLevel === undefined ? "" : `/${upgrade.maxLevel}`;
@@ -220,7 +219,7 @@ export function randomWeaponUpgrade(rng: Rng, loadout: PlayerLoadout): string {
     return u.name;
 }
 
-/** 現在レベルに応じ、通常強化または上限到達後の凝縮を返す。 */
+/** 現在レベルに応じ、通常強化または上限到達後の圧縮転生を返す。 */
 export function availableSpecialRewards(
     loadout: PlayerLoadout,
 ): SpecialUpgrade[] {

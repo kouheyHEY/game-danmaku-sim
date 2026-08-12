@@ -65,12 +65,16 @@ export interface Bullet {
   bouncesRemaining?: number; // 画面端で反射できる残り回数
   bounceSpeedUp?: number; // 反射時の速度倍率
   maxBounceSpeed?: number; // この速度へ達したら反射を終える
+  explodesOnBounce?: boolean; // 最初の壁反射時に拡散弾を発生させる
+  explosionWays?: number; // 爆発時に発生する拡散弾数
+  explosionSpeed?: number; // 爆発弾の速度
+  explosionRadius?: number; // 爆発弾の半径
   reversaBaseVel?: Vec2; // リバーサ反転弾の、反転前の速度ベクトル
   reversaTurnAt?: number; // この時刻から徐々に速度ベクトルを反転する
   angularVelocity?: number; // 速度ベクトルを毎秒回転させる角速度 [rad/s]
   curveUntil?: number; // この時刻まで angularVelocity を適用する
   expired?: boolean; // 特殊寿命を終え、次の整理で消える
-  style?: 'normal' | 'reversa' | 'sniper' | 'wave' | 'orb' | 'side' | 'tank' | 'reflected';
+  style?: 'normal' | 'reversa' | 'sniper' | 'wave' | 'orb' | 'side' | 'tank' | 'bomb' | 'reflected';
   grazed?: boolean; // プレイヤーのかすりゾーンで一度得点済み
 }
 

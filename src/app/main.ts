@@ -12,7 +12,7 @@ import {
 } from '../render/sessionRenderer';
 import { mountDebugPanel, debugEnabled, type DebugButton } from '../render/debugPanel';
 import {
-  debugSpawnBossKind, debugTriggerBossEvent, debugDefeatBoss, debugPriestMode,
+  debugSpawnBossKind, debugSpawnMutantBossKind, debugTriggerBossEvent, debugDefeatBoss, debugPriestMode,
   debugLevelUp, debugGiveUpgrade, debugFullHeal,
   debugAddMaxHp, debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, WEAPON_UPGRADES,
 } from '../run/debug';
@@ -226,6 +226,9 @@ async function main(): Promise<void> {
   if (debug) {
     const buttons: DebugButton[] = [
       ...BOSS_ORDER.map((kind) => ({ label: `BOSS ${BOSS_NAMES[kind]}`, onClick: () => debugSpawnBossKind(session, kind) })),
+      ...BOSS_ORDER
+        .filter((kind) => kind !== 'priest')
+        .map((kind) => ({ label: `変異 ${BOSS_NAMES[kind]}`, onClick: () => debugSpawnMutantBossKind(session, kind) })),
       { label: 'ボス撃破', onClick: () => debugDefeatBoss(session) },
       { label: 'ボスイベント発動', onClick: () => debugTriggerBossEvent(session) },
       { label: 'プリーストA 追跡', onClick: () => debugPriestMode(session, 'chase') },

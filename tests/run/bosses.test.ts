@@ -7,7 +7,7 @@ import { beginSession, chooseSpecialUpgrade, stepSession } from '../../src/run/s
 import {
   debugPriestMode, debugSpawnBossKind, debugTriggerBossEvent,
 } from '../../src/run/debug';
-import { applyBossHit, bossKindForLevel } from '../../src/run/bosses';
+import { applyBossHit, bossKindForLevel, makeBossEncounter, type BossKind } from '../../src/run/bosses';
 import { makeBoss } from '../../src/run/content';
 import { makeRng } from '../../src/domain/rng';
 import { FIELD } from '../../src/spec/stage0';
@@ -18,6 +18,23 @@ const DT = 1 / 120;
 function stepFor(s: ReturnType<typeof beginSession>, seconds: number): void {
   const count = Math.ceil(seconds / DT);
   for (let i = 0; i < count && s.phase === 'playing'; i++) stepSession(s, STILL, DT);
+}
+
+function spawnForcedBoss(
+  s: ReturnType<typeof beginSession>,
+  kind: Exclude<BossKind, 'normal' | 'priest'>,
+  mutant: boolean,
+): void {
+  const spawn = makeBossEncounter(kind, s.level, s.world.bounds, s.rng, true, s.world.time, () => s.nextEnemyId++, mutant);
+  s.world.enemies.push(...spawn.enemies);
+  s.boss = spawn.encounter;
+  s.bossId = spawn.encounter.primaryId;
+  s.bossKind = kind;
+  s.bossIsStrong = true;
+}
+
+function spawnMutantBoss(s: ReturnType<typeof beginSession>, kind: Exclude<BossKind, 'normal' | 'priest'>): void {
+  spawnForcedBoss(s, kind, true);
 }
 
 describe('特徴ボス', () => {
@@ -40,7 +57,7 @@ describe('特徴ボス', () => {
     secondCycle.level = 5;
     secondCycle.world.ship.autoFire = false;
     secondCycle.world.ship.invulnUntil = 1e9;
-    debugSpawnBossKind(secondCycle, 'reversa');
+    spawnForcedBoss(secondCycle, 'reversa', false);
 
     const firstBoss = firstCycle.world.enemies.find((enemy) => enemy.id === firstCycle.bossId)!;
     const secondBoss = secondCycle.world.enemies.find((enemy) => enemy.id === secondCycle.bossId)!;
@@ -340,11 +357,11 @@ describe('特徴ボス', () => {
     const hpBeforeReflect = boss.hp;
     stepSession(s, STILL, DT);
     const reflected = s.world.bullets.filter((b) => b.style === 'reflected');
-    expect(reflected).toHaveLength(3);
+    expect(reflected).toHaveLength(9);
     expect(reflected.every((b) => b.owner === 'enemy')).toBe(true);
     expect(reflected.every((b) => Math.hypot(b.vel.x, b.vel.y) <= 170)).toBe(true);
     expect(reflected.every((b) => b.radius <= 3)).toBe(true);
-    expect(new Set(reflected.map((b) => Math.atan2(b.vel.y, b.vel.x).toFixed(4))).size).toBe(3);
+    expect(new Set(reflected.map((b) => Math.atan2(b.vel.y, b.vel.x).toFixed(4))).size).toBe(9);
     expect(boss.hp).toBe(hpBeforeReflect - s.loadout.weapon.damage);
   });
 
@@ -367,5 +384,86 @@ describe('特徴ボス', () => {
     expect(Math.hypot(center.x - boss.pos.x, center.y - boss.pos.y)).toBeLessThan(Math.hypot(center.x - 40, center.y - 80));
     expect(s.world.bullets.filter((bullet) => bullet.owner === 'enemy')).toHaveLength(0);
     expect(s.boss.nextShotAt).toBeGreaterThan(s.world.ship.respawnUntil);
+  });
+
+  it('変異種リバーサは弾数を減らし、巨大で遅い弾を撃つ', () => {
+    const s = beginSession(71);
+    s.level = 5;
+    s.world.ship.autoFire = false;
+    s.world.ship.invulnUntil = 1e9;
+    spawnMutantBoss(s, 'reversa');
+    expect(s.boss?.mutant).toBe(true);
+
+    stepFor(s, 1);
+
+    const opening = s.world.bullets.filter((bullet) => bullet.style === 'reversa');
+    expect(opening.length).toBeGreaterThan(0);
+    expect(opening.length).toBeLessThanOrEqual(6);
+    expect(opening.every((bullet) => bullet.radius >= 18)).toBe(true);
+    expect(opening.every((bullet) => Math.hypot(bullet.vel.x, bullet.vel.y) < 100)).toBe(true);
+  });
+
+  it('変異種スナイパーは7体で、本体が減るほど同時弾数が増える', () => {
+    const s = beginSession(72);
+    s.level = 6;
+    s.world.ship.autoFire = false;
+    spawnMutantBoss(s, 'sniper');
+    expect(s.world.enemies).toHaveLength(7);
+    if (s.boss?.kind !== 'sniper') throw new Error('sniper runtime expected');
+
+    s.boss.shooters[0].nextShotAt = s.world.time;
+    stepSession(s, STILL, DT);
+    expect(s.world.bullets.filter((bullet) => bullet.style === 'sniper')).toHaveLength(1);
+
+    s.world.bullets = [];
+    for (const enemy of s.world.enemies.slice(0, 3)) enemy.hp = 0;
+    stepSession(s, STILL, DT);
+    s.boss.shooters[3].nextShotAt = s.world.time;
+    stepSession(s, STILL, DT);
+    expect(s.world.bullets.filter((bullet) => bullet.style === 'sniper')).toHaveLength(4);
+  });
+
+  it('変異種ショウグンは盾があっても本体が小刀波で攻撃し、横弾幕は少ない', () => {
+    const s = beginSession(73);
+    s.level = 7;
+    s.world.ship.autoFire = false;
+    s.world.ship.invulnUntil = 1e9;
+    spawnMutantBoss(s, 'shogun');
+    if (s.boss?.kind !== 'shogun') throw new Error('shogun runtime expected');
+    expect(s.world.enemies.some((enemy) => enemy.role === 'guard')).toBe(true);
+
+    stepFor(s, 2);
+
+    const sideBullets = s.world.bullets.filter((bullet) => bullet.style === 'side');
+    const waveBullets = s.world.bullets.filter((bullet) => bullet.style === 'wave');
+    expect(sideBullets.length).toBeLessThan(8);
+    expect(waveBullets.length).toBeGreaterThanOrEqual(11);
+  });
+
+  it('変異種タンクは大きく遅い爆発弾を撃ち、壁で高密度拡散弾に変わる', () => {
+    const s = beginSession(74);
+    s.level = 8;
+    s.world.ship.autoFire = false;
+    s.world.ship.invulnUntil = 1e9;
+    spawnMutantBoss(s, 'tank');
+    if (s.boss?.kind !== 'tank') throw new Error('tank runtime expected');
+    s.boss.nextBombAt = s.world.time;
+
+    stepSession(s, STILL, DT);
+    const bomb = s.world.bullets.find((bullet) => bullet.style === 'bomb')!;
+    expect(bomb.radius).toBeGreaterThanOrEqual(15);
+    expect(Math.hypot(bomb.vel.x, bomb.vel.y)).toBeLessThan(100);
+    expect(bomb.explodesOnBounce).toBe(true);
+
+    s.world.bullets = [bomb];
+    s.boss.nextShotAt = Number.POSITIVE_INFINITY;
+    s.boss.nextBombAt = Number.POSITIVE_INFINITY;
+    bomb.pos = { x: s.world.bounds.x + s.world.bounds.w - bomb.radius, y: s.world.bounds.y + s.world.bounds.h / 2 };
+    bomb.vel = { x: 300, y: 0 };
+    stepSession(s, STILL, DT);
+
+    const fragments = s.world.bullets.filter((bullet) => bullet.style === 'tank');
+    expect(fragments).toHaveLength(36);
+    expect(s.world.bullets.some((bullet) => bullet.style === 'bomb')).toBe(false);
   });
 });

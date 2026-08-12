@@ -265,16 +265,19 @@ export function stepSession(session: Session, input: ShipInput, dt: number): voi
 }
 
 /** 指定ボスを出現させる。通常進行とdev-loopで共用する。 */
-export function spawnBoss(session: Session, kind: BossKind, strong = false): boolean {
+export function spawnBoss(session: Session, kind: BossKind, strong = false, forceMutant?: boolean): boolean {
   if (session.boss) return false;
   const w = session.world;
-  const spawn = makeBossEncounter(kind, session.level, w.bounds, session.rng, strong, w.time, () => session.nextEnemyId++);
+  const spawn = makeBossEncounter(kind, session.level, w.bounds, session.rng, strong, w.time, () => session.nextEnemyId++, forceMutant);
   w.enemies.push(...spawn.enemies);
   session.boss = spawn.encounter;
   session.bossId = spawn.encounter.primaryId;
   session.bossKind = kind;
   session.bossIsStrong = strong;
-  session.toast = { text: `${strong ? '強敵 ' : ''}${BOSS_NAMES[kind]}`, until: w.time + 2.2 };
+  session.toast = {
+    text: `${spawn.encounter.mutant ? '変異種 ' : strong ? '強敵 ' : ''}${BOSS_NAMES[kind]}`,
+    until: w.time + 2.2,
+  };
   return true;
 }
 

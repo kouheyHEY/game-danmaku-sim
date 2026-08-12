@@ -26,7 +26,8 @@ const PRIEST_CHASE_SPEED = 54;
 const PRIEST_REFLECT_TARGET_Y_RATIO = 0.18;
 const PRIEST_REFLECT_MOVE_SPEED = 112;
 const PRIEST_REFLECT_DRIFT_SPEED = 28;
-const PRIEST_REFLECT_DRIFT_INTERVAL = 3.6;
+const MUTANT_CHANCE = 0.35;
+const MUTANT_START_LEVEL = 5;
 
 /** 強ボスはこの固定順で出現する。プリーストは転生の節目として扱う。 */
 export const BOSS_ORDER = [
@@ -45,6 +46,7 @@ interface BossBase {
     primaryId: number;
     enemyIds: number[];
     strong: boolean;
+    mutant: boolean;
     notice: string | null;
 }
 
@@ -62,6 +64,7 @@ export interface ReversaBoss extends BossBase {
 /** 3体構成のスナイパーと、各個体の露出時間を管理する実行時状態。 */
 export interface SniperBoss extends BossBase {
     kind: "sniper";
+    initialCount: number;
     shooters: Array<{
         id: number;
         nextShotAt: number;
@@ -78,6 +81,7 @@ export interface ShogunBoss extends BossBase {
     attackNextAt: number;
     waveIndex: number;
     waveNextAt: number;
+    waveMax: number;
     wasPlayerUpper: boolean;
 }
 
@@ -86,6 +90,7 @@ export interface TankBoss extends BossBase {
     kind: "tank";
     stage: number;
     nextShotAt: number;
+    nextBombAt: number;
     rebound: boolean;
     recoverUntil: number;
 }
@@ -97,6 +102,7 @@ export interface PriestBoss extends BossBase {
     nextShotAt: number;
     nextCheckAt: number;
     orbAngle: number;
+    reflectAnchored: boolean;
 }
 
 /** Sessionループで扱う全ボス実行時状態の判別可能Union。 */
@@ -125,8 +131,24 @@ export const BOSS_NAMES: Record<BossKind, string> = {
 
 /** ランのレベルと通常・強敵区分からボスHPを調整する。 */
 function bossHp(level: number, strong: boolean): number {
+    const cycle = Math.floor(level / BOSS_ORDER.length);
     const base = 100 + level * 70;
-    return Math.round(base * (strong ? 2 : 1));
+    const cycleMultiplier = 1 + cycle * 0.35;
+    return Math.round(base * (strong ? 2 : 1) * cycleMultiplier);
+}
+
+/** 2周目以降の攻撃インフレ対策として、周回ごとの圧力レベルを強めに補正する。 */
+function pressureLevel(level: number): number {
+    const cycle = Math.floor(level / BOSS_ORDER.length);
+    return level + cycle * 4;
+}
+
+/** 2周目以降、プリースト以外の特徴ボスを一定確率で変異種にする。 */
+function shouldMutate(kind: BossKind, level: number, rng: Rng): boolean {
+    return kind !== "normal" &&
+        kind !== "priest" &&
+        level >= MUTANT_START_LEVEL &&
+        rng.next() < MUTANT_CHANCE;
 }
 
 /** 最小構成のEnemyを作る。ボス固有のフラグは呼び出し側で追加する。 */
@@ -166,11 +188,10 @@ export function bossKindForLevel(level: number): BossKind {
 }
 
 /**
- * Builds the boss runtime plus its enemy entities.
+ * ボスの実行時状態とEnemy配列をまとめて作る。
  *
- * This function is the boundary between session progression and per-boss behavior:
- * it allocates all enemy IDs up front, initializes HP/visibility/targetability,
- * and leaves time-based behavior to the step* functions below.
+ * Session進行とボス固有挙動の境界で、ID割り当て・HP・表示状態を初期化する。
+ * 時間経過に応じた攻撃や移動は、下の step* 系関数に任せる。
  */
 export function makeBossEncounter(
     kind: BossKind,
@@ -180,16 +201,19 @@ export function makeBossEncounter(
     strong: boolean,
     now: number,
     allocateId: () => number,
+    forceMutant?: boolean,
 ): BossSpawn {
     const hp = bossHp(level, strong);
     const cx = bounds.x + bounds.w / 2;
     const top = bounds.y + bounds.h * 0.16;
     const primaryId = allocateId();
+    const mutant = forceMutant ?? shouldMutate(kind, level, rng);
     const base: BossBase = {
         kind,
         primaryId,
         enemyIds: [primaryId],
         strong,
+        mutant,
         notice: null,
     };
 
@@ -220,13 +244,14 @@ export function makeBossEncounter(
     }
 
     if (kind === "sniper") {
-        const eachHp = Math.max(1, Math.ceil(hp / 3));
+        const count = mutant ? 7 : 3;
+        const eachHp = Math.max(1, Math.ceil(hp / count));
         const enemies: Enemy[] = [];
         const shooters: SniperBoss["shooters"] = [];
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < count; i++) {
             const id = i === 0 ? primaryId : allocateId();
-            const laneCenter = bounds.x + bounds.w * ((i + 0.5) / 3);
-            const x = laneCenter + (rng.next() - 0.5) * bounds.w * 0.18;
+            const laneCenter = bounds.x + bounds.w * ((i + 0.5) / count);
+            const x = laneCenter + (rng.next() - 0.5) * bounds.w * 0.1;
             const y = top + (rng.next() - 0.5) * bounds.h * 0.12;
             const e = enemy(
                 id,
@@ -246,7 +271,7 @@ export function makeBossEncounter(
             });
             if (i > 0) base.enemyIds.push(id);
         }
-        return { enemies, encounter: { ...base, kind, shooters } };
+        return { enemies, encounter: { ...base, kind, initialCount: count, shooters } };
     }
 
     if (kind === "shogun") {
@@ -282,6 +307,7 @@ export function makeBossEncounter(
                 attackNextAt: now + 1.2,
                 waveIndex: 0,
                 waveNextAt: 0,
+                waveMax: 0,
                 wasPlayerUpper: false,
             },
         };
@@ -299,6 +325,7 @@ export function makeBossEncounter(
                 kind,
                 stage: 0,
                 nextShotAt: now + 1,
+                nextBombAt: now + 1.8,
                 rebound: false,
                 recoverUntil: 0,
             },
@@ -322,6 +349,7 @@ export function makeBossEncounter(
             nextShotAt: now + 0.65,
             nextCheckAt: now + 0.65,
             orbAngle: 0,
+            reflectAnchored: false,
         },
     };
 }
@@ -435,8 +463,8 @@ function updateReversaVectors(runtime: ReversaBoss, world: World): void {
 }
 
 /** 第二段階のリバーサ弾を、画面外からボスへ向けて発生させる。 */
-function spawnReversaIncoming(world: World, boss: Enemy, level: number): void {
-    const radius = 5;
+function spawnReversaIncoming(world: World, boss: Enemy, level: number, mutant: boolean): void {
+    const radius = mutant ? 18 : 5;
     const side = world.rng.next();
     let source: Vec2;
     if (side < 0.5) {
@@ -462,7 +490,9 @@ function spawnReversaIncoming(world: World, boss: Enemy, level: number): void {
         };
     }
     const angle = Math.atan2(boss.pos.y - source.y, boss.pos.x - source.x);
-    const speed = 105 + level * 2.5 + world.rng.next() * 48;
+    const speed = mutant
+        ? 62 + level * 1.2 + world.rng.next() * 24
+        : 105 + level * 2.5 + world.rng.next() * 48;
     pushBullet(world, source, angle, speed, radius, "reversa");
 }
 
@@ -475,23 +505,29 @@ function stepReversa(runtime: ReversaBoss, world: World, level: number): void {
     if (runtime.reversing) {
         updateReversaVectors(runtime, world);
         const incomingInterval = Math.max(
-            0.12,
-            REVERSA_INCOMING_INTERVAL - level * 0.002,
+            runtime.mutant ? 0.28 : 0.12,
+            (runtime.mutant ? 0.42 : REVERSA_INCOMING_INTERVAL) - level * 0.002,
         );
         while (world.time >= runtime.nextShotAt) {
-            spawnReversaIncoming(world, boss, level);
+            spawnReversaIncoming(world, boss, level, runtime.mutant);
             runtime.nextShotAt += incomingInterval;
         }
         return;
     }
 
-    const interval = Math.max(0.38, REVERSA_INTERVAL - level * 0.006);
-    const ways = REVERSA_WAYS + Math.min(2, Math.floor(level / 6));
+    const interval = runtime.mutant
+        ? Math.max(0.62, 0.82 - level * 0.004)
+        : Math.max(0.38, REVERSA_INTERVAL - level * 0.006);
+    const ways = runtime.mutant
+        ? 2 + Math.min(1, Math.floor(level / 10))
+        : REVERSA_WAYS + Math.min(2, Math.floor(level / 6));
     while (world.time >= runtime.nextShotAt) {
         for (let i = 0; i < ways; i++) {
             const angle = Math.PI * (0.16 + world.rng.next() * 0.68);
-            const speed = 108 + level * 3 + world.rng.next() * 52;
-            pushBullet(world, boss.pos, angle, speed, 5, "reversa");
+            const speed = runtime.mutant
+                ? 48 + level * 1.5 + world.rng.next() * 26
+                : 108 + level * 3 + world.rng.next() * 52;
+            pushBullet(world, boss.pos, angle, speed, runtime.mutant ? 18 : 5, "reversa");
         }
         runtime.nextShotAt += interval;
     }
@@ -499,6 +535,10 @@ function stepReversa(runtime: ReversaBoss, world: World, level: number): void {
 
 /** 各スナイパーを、ランダム移動・射撃・短時間露出・潜伏の順に進める。 */
 function stepSniper(runtime: SniperBoss, world: World, level: number): void {
+    const aliveCount = runtime.shooters.filter((shooter) => !!getEnemy(world, shooter.id)).length;
+    const lostCount = runtime.initialCount - aliveCount;
+    const shotWays = runtime.mutant ? Math.min(7, 1 + lostCount) : 1;
+    const shotSpread = runtime.mutant ? 0.08 : 0;
     for (const shooter of runtime.shooters) {
         const e = getEnemy(world, shooter.id);
         if (!e) continue;
@@ -511,9 +551,9 @@ function stepSniper(runtime: SniperBoss, world: World, level: number): void {
                     world.bounds.y +
                     world.bounds.h * (0.1 + world.rng.next() * 0.22),
             };
-            pushAimed(world, e.pos, 520 + level * 12, 5, 1, 0, "sniper");
+            pushAimed(world, e.pos, 520 + level * 12, 5, shotWays, shotSpread, "sniper");
             shooter.vulnerableUntil = world.time + 2.4;
-            shooter.nextShotAt += 3.1;
+            shooter.nextShotAt += runtime.mutant ? 3.35 : 3.1;
         }
         const exposed = world.time < shooter.vulnerableUntil;
         e.visible = exposed;
@@ -543,7 +583,9 @@ function stepShogun(runtime: ShogunBoss, world: World, level: number): void {
             5,
             "side",
         );
-        runtime.sideNextAt += 0.1 + world.rng.next() * 0.1;
+        runtime.sideNextAt += runtime.mutant
+            ? 0.45 + world.rng.next() * 0.25
+            : 0.1 + world.rng.next() * 0.1;
     }
 
     if (wall) {
@@ -552,13 +594,12 @@ function stepShogun(runtime: ShogunBoss, world: World, level: number): void {
             pushAimed(world, wall.pos, 145 + level * 4, 7, 1, 0, "normal");
             runtime.wallNextAt += 2.15;
         }
-        return;
+        if (!runtime.mutant) return;
     }
 
     const playerUpper = world.ship.pos.y <= world.bounds.y + world.bounds.h / 2;
     if (playerUpper && !runtime.wasPlayerUpper && runtime.waveIndex === 0) {
-        runtime.waveIndex = 1;
-        runtime.waveNextAt = world.time;
+        startShogunWave(runtime, world.time, 21);
         runtime.attackNextAt = world.time + 1.1;
         runtime.notice = "刀波";
     }
@@ -566,38 +607,50 @@ function stepShogun(runtime: ShogunBoss, world: World, level: number): void {
 
     if (
         runtime.waveIndex > 0 &&
-        runtime.waveIndex <= 21 &&
+        runtime.waveIndex <= runtime.waveMax &&
         world.time >= runtime.waveNextAt
     ) {
-        while (runtime.waveIndex <= 21 && world.time >= runtime.waveNextAt) {
+        while (runtime.waveIndex <= runtime.waveMax && world.time >= runtime.waveNextAt) {
             const i = runtime.waveIndex - 1;
             const base = Math.atan2(
                 world.ship.pos.y - boss.pos.y,
                 world.ship.pos.x - boss.pos.x,
             );
-            const arc = -0.86 + (i / 20) * 1.72;
+            const denom = Math.max(1, runtime.waveMax - 1);
+            const arcWidth = runtime.waveMax <= 11 ? 0.92 : 1.72;
+            const arc = -arcWidth / 2 + (i / denom) * arcWidth;
             const source = {
                 x: boss.pos.x + Math.cos(base + arc) * 18,
                 y: boss.pos.y + Math.sin(base + arc) * 18,
             };
-            pushBullet(world, source, base + arc, 205 + level * 4, 6, "wave");
+            pushBullet(world, source, base + arc, 205 + level * 4, runtime.waveMax <= 11 ? 4 : 6, "wave");
             runtime.waveIndex += 1;
-            runtime.waveNextAt += 0.01;
+            runtime.waveNextAt += runtime.waveMax <= 11 ? 0.014 : 0.01;
         }
-        if (runtime.waveIndex > 21) runtime.waveIndex = 0;
+        if (runtime.waveIndex > runtime.waveMax) runtime.waveIndex = 0;
     }
 
     if (runtime.waveIndex === 0 && world.time >= runtime.attackNextAt) {
-        if (!playerUpper) {
+        if (runtime.mutant) {
+            startShogunWave(runtime, world.time, 11);
+            runtime.attackNextAt = world.time + 1.35;
+            runtime.notice = "小刀波";
+        } else if (!playerUpper) {
             pushAimed(world, boss.pos, 175 + level * 5, 6, 3, 0.18, "normal");
             runtime.attackNextAt = world.time + 1.05;
         } else {
-            runtime.waveIndex = 1;
-            runtime.waveNextAt = world.time;
+            startShogunWave(runtime, world.time, 21);
             runtime.attackNextAt = world.time + 1.1;
             runtime.notice = "刀波";
         }
     }
+}
+
+/** ショウグンの刀波を指定弾数で開始する。 */
+function startShogunWave(runtime: ShogunBoss, now: number, max: number): void {
+    runtime.waveIndex = 1;
+    runtime.waveMax = max;
+    runtime.waveNextAt = now;
 }
 
 /** タンクのHP割合段階と、低密度の跳弾フェーズを進める。 */
@@ -622,8 +675,12 @@ function stepTank(runtime: TankBoss, world: World, level: number): void {
         }
     }
 
-    const normalSpeed = (135 + level * 6) * (1 + runtime.stage * 0.12);
-    const normalRadius = 5.5 + runtime.stage * 0.8;
+    const normalSpeed = runtime.mutant
+        ? 135 + level * 6
+        : (135 + level * 6) * (1 + runtime.stage * 0.12);
+    const normalRadius = runtime.mutant
+        ? 5.5 + runtime.stage * 1.45
+        : 5.5 + runtime.stage * 0.8;
     const speed = runtime.rebound ? normalSpeed * 0.85 : normalSpeed;
     let radius = normalRadius;
     let bouncing = false;
@@ -634,7 +691,7 @@ function stepTank(runtime: TankBoss, world: World, level: number): void {
         const p = clamp(1 - (runtime.recoverUntil - world.time) / 3, 0, 1);
         radius = 3 + (normalRadius - 3) * p;
     }
-    const densitySteps = Math.floor(runtime.stage / 2);
+    const densitySteps = runtime.mutant ? 0 : Math.floor(runtime.stage / 2);
     const baseInterval = Math.max(0.2, 0.5 - densitySteps * 0.11);
     const interval = runtime.rebound ? baseInterval * 2.5 : baseInterval;
     while (world.time >= runtime.nextShotAt) {
@@ -650,11 +707,25 @@ function stepTank(runtime: TankBoss, world: World, level: number): void {
         );
         runtime.nextShotAt += interval;
     }
+
+    if (runtime.mutant) {
+        while (world.time >= runtime.nextBombAt) {
+            pushAimed(world, boss.pos, 72 + level * 1.5, 15, 1, 0, "bomb", {
+                bouncesRemaining: 1,
+                explodesOnBounce: true,
+                explosionWays: 36,
+                explosionSpeed: 185 + level * 3,
+                explosionRadius: 3,
+            });
+            runtime.nextBombAt += 2.1;
+        }
+    }
 }
 
 /** プリーストを最終の反射フェーズへ切り替える。 */
 function activatePriestReflect(runtime: PriestBoss, world: World): void {
     runtime.mode = "reflect";
+    runtime.reflectAnchored = false;
     const boss = getEnemy(world, runtime.primaryId);
     if (boss) {
         boss.hitRadius = Math.min(boss.hitRadius, 10);
@@ -711,7 +782,7 @@ export function forcePriestMode(
 }
 
 /** プリーストを上部の基準位置へ移動し、その後ゆっくり左右に漂わせる。 */
-function priestReflectMovement(world: World, boss: Enemy): void {
+function priestReflectMovement(runtime: PriestBoss, world: World, boss: Enemy): void {
     const target = {
         x: world.bounds.x + world.bounds.w / 2,
         y: world.bounds.y + world.bounds.h * PRIEST_REFLECT_TARGET_Y_RATIO,
@@ -720,16 +791,14 @@ function priestReflectMovement(world: World, boss: Enemy): void {
     const dy = target.y - boss.pos.y;
     const distance = Math.hypot(dx, dy);
     const speed = PRIEST_REFLECT_MOVE_SPEED;
-    if (distance > 2) {
+    if (!runtime.reflectAnchored && distance > 2) {
         boss.vel = { x: (dx / distance) * speed, y: (dy / distance) * speed };
     } else {
+        runtime.reflectAnchored = true;
         // 基準位置へ着いた後は横移動だけにして、縦位置を読みやすく保つ。
         boss.pos.y = target.y;
         boss.vel = {
-            x:
-                Math.sin(
-                    (world.time * Math.PI * 2) / PRIEST_REFLECT_DRIFT_INTERVAL,
-                ) * PRIEST_REFLECT_DRIFT_SPEED,
+            x: boss.vel.x === 0 ? PRIEST_REFLECT_DRIFT_SPEED : boss.vel.x,
             y: 0,
         };
     }
@@ -754,7 +823,7 @@ function stepPriest(
     else setPriestMode(runtime, world, "chase");
 
     if (runtime.mode === "reflect") {
-        priestReflectMovement(world, boss);
+        priestReflectMovement(runtime, world, boss);
         return;
     }
 
@@ -851,13 +920,14 @@ export function prepareBossStep(
     dt: number,
     level: number,
 ): ShipInput {
+    const scaledLevel = pressureLevel(level);
     if (runtime.kind === "normal") return input;
-    if (runtime.kind === "reversa") stepReversa(runtime, world, level);
-    else if (runtime.kind === "sniper") stepSniper(runtime, world, level);
-    else if (runtime.kind === "shogun") stepShogun(runtime, world, level);
-    else if (runtime.kind === "tank") stepTank(runtime, world, level);
+    if (runtime.kind === "reversa") stepReversa(runtime, world, scaledLevel);
+    else if (runtime.kind === "sniper") stepSniper(runtime, world, scaledLevel);
+    else if (runtime.kind === "shogun") stepShogun(runtime, world, scaledLevel);
+    else if (runtime.kind === "tank") stepTank(runtime, world, scaledLevel);
     else if (runtime.kind === "priest")
-        stepPriest(runtime, world, loadout, dt, level);
+        stepPriest(runtime, world, loadout, dt, scaledLevel);
     return input;
 }
 
@@ -924,17 +994,23 @@ export function takeBossNotice(runtime: BossEncounter): string | null {
 export function bossStatus(runtime: BossEncounter, world: World): string {
     if (runtime.kind === "normal") return "通常弾幕";
     if (runtime.kind === "reversa")
-        return runtime.reversing ? "反転弾幕" : "ランダム弾幕";
+        return runtime.mutant
+            ? runtime.reversing ? "巨大反転弾" : "巨大ランダム弾"
+            : runtime.reversing ? "反転弾幕" : "ランダム弾幕";
     if (runtime.kind === "sniper") {
         const exposed = runtime.shooters.filter(
             (s) => world.time < s.vulnerableUntil && !!getEnemy(world, s.id),
         ).length;
-        return `露出 ${exposed}/${runtime.shooters.filter((s) => !!getEnemy(world, s.id)).length}`;
+        return `${runtime.mutant ? "多重狙撃 " : ""}露出 ${exposed}/${runtime.shooters.filter((s) => !!getEnemy(world, s.id)).length}`;
     }
     if (runtime.kind === "shogun")
-        return getEnemy(world, runtime.wallId) ? "壁を破壊せよ" : "本体露出";
+        return runtime.mutant
+            ? getEnemy(world, runtime.wallId) ? "盾越し刀波" : "小刀波"
+            : getEnemy(world, runtime.wallId) ? "壁を破壊せよ" : "本体露出";
     if (runtime.kind === "tank")
-        return `装甲段階 ${runtime.stage}${runtime.rebound ? "・跳弾" : ""}`;
+        return runtime.mutant
+            ? `装甲段階 ${runtime.stage}・爆裂弾`
+            : `装甲段階 ${runtime.stage}${runtime.rebound ? "・跳弾" : ""}`;
     return runtime.mode === "chase"
         ? "追跡祈祷"
         : runtime.mode === "orb"

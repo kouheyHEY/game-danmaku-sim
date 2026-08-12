@@ -6,7 +6,7 @@ import { beginSession } from '../../src/run/session';
 import {
   debugSpawnBoss, debugSpawnStrongBoss, debugSpawnMob, debugLevelUp, debugGiveUpgrade, debugFullHeal,
   debugHurt, debugToggleInvuln, debugClearBullets, debugAddScore, debugSpawnBossKind,
-  debugTriggerBossEvent, debugDefeatBoss, debugPriestMode, WEAPON_UPGRADES,
+  debugSpawnMutantBossKind, debugTriggerBossEvent, debugDefeatBoss, debugPriestMode, WEAPON_UPGRADES,
 } from '../../src/run/debug';
 
 describe('デバッグアクション', () => {
@@ -97,6 +97,17 @@ describe('デバッグアクション', () => {
     debugSpawnBossKind(s, 'priest');
     debugPriestMode(s, 'reflect');
     expect(s.boss?.kind === 'priest' && s.boss.mode).toBe('reflect');
+  });
+
+  it('変異種ボスを強制出現できる', () => {
+    const s = beginSession(10);
+    s.level = 5;
+
+    debugSpawnMutantBossKind(s, 'sniper');
+
+    expect(s.boss?.kind).toBe('sniper');
+    expect(s.boss?.mutant).toBe(true);
+    expect(s.world.enemies).toHaveLength(7);
   });
 
   it('現在のボス一式を即時撃破できる', () => {

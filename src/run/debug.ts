@@ -5,7 +5,7 @@ import { applyPlayerHit, multiplierForPriestDefeats, scoreForBase, spawnBoss, ty
 import { makeMob } from './content';
 import {
   cleanupBoss, forceBossEvent, forcePriestMode,
-  type BossKind, type PriestBoss,
+  type BossKind, type FeatureBossKind, type PriestBoss,
 } from './bosses';
 import { WEAPON_UPGRADES, randomWeaponUpgrade, type WeaponUpgrade } from './upgrades';
 import { buildWeapon } from './weapon';
@@ -15,7 +15,7 @@ import { buildWeapon } from './weapon';
  * すべて Session を直接操作するだけの純粋な副作用関数なのでテストしやすい。
  */
 
-function replaceBoss(s: Session, kind: BossKind, strong: boolean): void {
+function replaceBoss(s: Session, kind: BossKind, strong: boolean, forceMutant?: boolean): void {
   if (s.boss) cleanupBoss(s.boss, s.world, s.loadout);
   s.boss = null;
   s.bossId = null;
@@ -23,7 +23,7 @@ function replaceBoss(s: Session, kind: BossKind, strong: boolean): void {
   s.bossIsStrong = false;
   s.world.enemies = [];
   s.world.bullets = [];
-  spawnBoss(s, kind, strong);
+  spawnBoss(s, kind, strong, forceMutant);
 }
 
 export function debugSpawnBoss(s: Session): void {
@@ -36,6 +36,11 @@ export function debugSpawnStrongBoss(s: Session): void {
 
 export function debugSpawnBossKind(s: Session, kind: BossKind): void {
   replaceBoss(s, kind, true);
+}
+
+/** 指定した特徴ボスを変異種として強制出現させる。 */
+export function debugSpawnMutantBossKind(s: Session, kind: Exclude<FeatureBossKind, 'priest'>): void {
+  replaceBoss(s, kind, true, true);
 }
 
 export function debugTriggerBossEvent(s: Session): void {

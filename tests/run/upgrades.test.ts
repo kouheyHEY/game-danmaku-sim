@@ -82,8 +82,8 @@ describe('武器強化プール（弾数+2一強の解消）', () => {
     const interval0 = l.weapon.interval;
     const speed0 = l.weapon.speed;
     overdrive.apply(l);
-    expect(l.weapon.interval).toBeCloseTo(interval0 * 0.78);
-    expect(l.weapon.speed).toBe(speed0 + 120);
+    expect(l.weapon.interval).toBeCloseTo(interval0 * 0.88);
+    expect(l.weapon.speed).toBe(speed0 + 60);
   });
 
   it('特別強化は重複なしで2択になり、通常強化より大きく変化する', () => {
@@ -111,37 +111,41 @@ describe('武器強化プール（弾数+2一強の解消）', () => {
   it('強化選択肢に現在のレベルと上限を表示する', () => {
     const l = startingLoadout();
     const rewards = availableSpecialRewards(l);
-    expect(rewards.find((u) => u.key === 'focus')?.name).toContain('Lv.1/4');
+    expect(rewards.find((u) => u.key === 'focus')?.name).toContain('Lv.1/5');
+    expect(rewards.find((u) => u.key === 'overdrive')?.name).toContain('Lv.1/5');
+    expect(rewards.find((u) => u.key === 'heavy')?.name).toContain('Lv.1/5');
     expect(rewards.find((u) => u.key === 'life')?.name).toContain('Lv.1');
   });
 
-  it('弾数強化が上限に達すると凝縮へ置き換わり、9方向を威力9倍へ変換して再育成できる', () => {
+  it('弾数強化が上限に達すると、フォーカス圧縮転生へ置き換わる', () => {
     const l = startingLoadout();
     const focus = SPECIAL_UPGRADES.find((u) => u.key === 'focus')!;
     for (let i = 0; i < SPECIAL_UPGRADE_MAX_LEVELS.focus; i++) focus.apply(l);
-    expect(l.weapon.ways).toBe(9);
+    expect(l.weapon.ways).toBe(11);
 
-    const reset = availableSpecialRewards(l).find((u) => u.key === 'focus')!;
-    expect(reset.reset).toBe(true);
+    const focusReward = availableSpecialRewards(l).find((u) => u.key === 'focus');
+    expect(focusReward?.reset).toBe(true);
+    expect(focusReward?.name).toContain('フォーカス圧縮転生');
     const damage = l.weapon.damage;
-    reset.apply(l);
+    focusReward!.apply(l);
 
     expect(l.weapon.kind).toBe(INITIAL_WEAPON.kind);
     expect(l.weapon.ways).toBe(INITIAL_WEAPON.ways);
-    expect(l.weapon.damage).toBeCloseTo(damage * 9);
+    expect(l.weapon.damage).toBeCloseTo(damage * 11);
     expect(l.upgradeLevels.focus).toBe(0);
-    expect(availableSpecialRewards(l).find((u) => u.key === 'focus')?.reset).not.toBe(true);
   });
 
-  it('速度・連射強化も上限後に初期値へ戻し、蓄積倍率を威力へ変換する', () => {
+  it('速度・連射強化も上限後に圧縮転生で初期値へ戻し、蓄積倍率を威力へ変換する', () => {
     const l = startingLoadout();
     const overdrive = SPECIAL_UPGRADES.find((u) => u.key === 'overdrive')!;
     for (let i = 0; i < SPECIAL_UPGRADE_MAX_LEVELS.overdrive; i++) overdrive.apply(l);
     const expectedMultiplier = (l.weapon.speed / INITIAL_WEAPON.speed)
       * (INITIAL_WEAPON.interval / l.weapon.interval);
     const damage = l.weapon.damage;
+    const compression = availableSpecialRewards(l).find((u) => u.key === 'overdrive')!;
 
-    availableSpecialRewards(l).find((u) => u.key === 'overdrive')!.apply(l);
+    expect(compression.name).toContain('オーバードライブ圧縮転生');
+    compression.apply(l);
 
     expect(l.weapon.speed).toBe(INITIAL_WEAPON.speed);
     expect(l.weapon.interval).toBe(INITIAL_WEAPON.interval);
@@ -149,7 +153,7 @@ describe('武器強化プール（弾数+2一強の解消）', () => {
     expect(l.upgradeLevels.overdrive).toBe(0);
   });
 
-  it('HP強化は上限なしで、武器強化は凝縮を挟んで何周でも成長できる', () => {
+  it('HP強化は上限なしで、武器強化は系統別圧縮を挟んで何周でも成長できる', () => {
     const l = startingLoadout();
     const life = SPECIAL_UPGRADES.find((u) => u.key === 'life')!;
     const focus = SPECIAL_UPGRADES.find((u) => u.key === 'focus')!;
