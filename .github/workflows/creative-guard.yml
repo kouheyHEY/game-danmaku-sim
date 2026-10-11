@@ -1,0 +1,29 @@
+name: Creative Guard
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+  issues:
+    types: [opened, edited, labeled, reopened]
+jobs:
+  check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: kouheyHEY/creative-guard@4de5ca20e86e332addcec28ba9353eeca72df4c1
+        with:
+          github-token: ${{ github.token }}
+          mode: check
+          time-zone: Asia/Tokyo
+  intake:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: kouheyHEY/creative-guard@4de5ca20e86e332addcec28ba9353eeca72df4c1
+        with:
+          github-token: ${{ github.token }}
+          mode: intake
