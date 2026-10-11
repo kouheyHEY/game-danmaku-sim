@@ -12,17 +12,18 @@ jobs:
       issues: read
       pull-requests: read
     steps:
-      - uses: kouheyHEY/creative-guard@59657301133bbf204e5f80a831320634fa4c036b
+      - uses: kouheyHEY/creative-guard@4de5ca20e86e332addcec28ba9353eeca72df4c1
         with:
           github-token: ${{ github.token }}
           mode: check
+          time-zone: Asia/Tokyo
   intake:
     if: github.event_name == 'issues'
     runs-on: ubuntu-latest
     permissions:
       issues: write
     steps:
-      - uses: kouheyHEY/creative-guard@59657301133bbf204e5f80a831320634fa4c036b
+      - uses: kouheyHEY/creative-guard@4de5ca20e86e332addcec28ba9353eeca72df4c1
         with:
           github-token: ${{ github.token }}
           mode: intake

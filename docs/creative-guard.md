@@ -6,4 +6,4 @@ PR の説明には `Creative Guard Focus: #番号` を1行入れます。緊急�
 
 この PR をマージした後、4種類の `creative-guard:*` ラベルを作り、Focus Issue を一つ作成してください。試験 PR で check の成功・失敗を確認してから、既定ブランチの ruleset で PR と `check` を必須にします。既存のデプロイ workflow はそのままです。
 
-AI エージェントによるアイデア分類には [共通プロンプト](https://github.com/kouheyHEY/creative-guard/blob/v1/AI_PROMPT.md)を使えます。判定ルールと例外申請の詳細は [共通仕様](https://github.com/kouheyHEY/creative-guard/blob/v1/README.md)にあります。
+AI エージェントによるアイデア分類には [共通プロンプト](https://github.com/kouheyHEY/creative-guard/blob/v1.0.1/AI_PROMPT.md)を使えます。判定ルールと例外申請の詳細は [共通仕様](https://github.com/kouheyHEY/creative-guard/blob/v1.0.1/README.md)にあります。
